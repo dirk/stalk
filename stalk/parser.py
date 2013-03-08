@@ -1,17 +1,3 @@
-import py
-import sys
-
-# from rpython.rlib.parsing.ebnfparse import parse_ebnf, make_parse_function
-# from pypy.rlib.parsing.ebnfparse import parse_ebnf, make_parse_function
-
-# grammar = py.path.local("stalk/grammar.txt").read("rt")
-# regexs, rules, ToAST = parse_ebnf(grammar)
-
-
-# print regexs
-# print rules
-
-# parse = make_parse_function(regexs, rules, eof=True)
 
 from rply import ParserGenerator, LexerGenerator
 
@@ -23,7 +9,6 @@ _id = r"[A-Za-z][A-Za-z0-9_]*"
 lg.add("KEYWORD", _id + r":")
 lg.add("IDENTIFIER", _id)
 lg.add("SYMBOL", r":" + _id)
-
 _comment = r"[ \t]*#[^\n]*"
 lg.add("COMMENT", _comment)
 lg.add("LPAREN", r"\([ \t\n]*")
@@ -40,13 +25,14 @@ lg.add("CONT", r"[ \t]+\\(" + _comment + r")?\n[ \t]*")
 lg.add("SWS", r"[ \t]+")
 lg.add("COMMA", ",[ \t\n]*")
 lg.add("TERMINAL", r"[ \t]*\n[ \t\n]*")
-
+# TODO: Make strings parsing not suck dick.
 lg.add("STRING", r"\"[^\"]*\"")
-
+# TODO: Finalize operators
 lg.add("OPERATOR", r"[+\-=*/\^]")
 
 pg = ParserGenerator(
     [r.name for r in lg.rules]
+    # TODO: Add operator precedence and cache_id
 )
 
 @pg.production("main : statements")
@@ -61,11 +47,12 @@ def statements(p):
 def statements_statement(p):
     return p[0]
 
-# Allow for terminals before the statement
+# Allow for terminals before the statement.
 @pg.production("statements : TERMINAL statement")
 def statements_statement(p):
     return p[0]
 
+# Whole-line comments
 @pg.production("statement : COMMENT TERMINAL")
 def statement_comment(p):
     return p[0]
@@ -78,6 +65,8 @@ def statement_with_comment(p):
 def statement(p):
     return p[0]
 
+# Expressions must be separated by either a continuation (CONT) or
+# significant whitespace.
 @pg.production("expression : expression CONT expression")
 def expressions_with_cont(p):
     #print p
@@ -144,6 +133,8 @@ def array_multi(p):
 def array_single(p):
     return p[0]
 
+# Expressions:
+
 @pg.production("expression : array")
 def expression_array(p):
     return p[0]
@@ -176,7 +167,6 @@ def expression_int(p):
 def expression_string(p):
     return p[0].value
 
-
 @pg.production("expression : INTEGER DECIMAL")
 def expression_float(p):
     return p[0].value
@@ -186,5 +176,3 @@ parser = pg.build()
 
 def parse(body):
     parser.parse(lexer.lex(body))
-
-# main(_star_symbol0(statement(expression(identifier(Symbol('IDENTIFIER', 'testing'))), _star_symbol1(sws(_plus_symbol0(Symbol('__0_ ', ' '))), expression(operator(Symbol('__3_=', '='))), _star_symbol1(sws(_plus_symbol0(Symbol('__0_ ', ' '))), expression(identifier(Symbol('IDENTIFIER', 'tseting'))))), __statement_rest_0_0(terminal(__terminal_rest_0_0(nl(Symbol('__2_\n', '\n'))))))), Symbol('EOF', 'EOF'))
