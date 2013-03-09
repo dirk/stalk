@@ -13,8 +13,7 @@ _comment = r"[ \t]*#[^\n]*"
 lg.add("COMMENT", _comment)
 lg.add("LPAREN", r"\([ \t\n]*")
 lg.add("RPAREN", r"[ \t\n]*\)")
-#lg.add("LANGLE", r"<")
-#lg.add("RANGLE", r">")
+# TODO: Maybe clear this up to be prettier.
 lg.add("PREFACE", r"<[A-Za-z0-9_:@, \t\n]+>[ \t\n]*")
 lg.add("LBRACK", r"{[ \t\n]*")
 lg.add("RBRACK", r"[ \t\n]*}")
@@ -35,144 +34,166 @@ pg = ParserGenerator(
     # TODO: Add operator precedence and cache_id
 )
 
+
+
+from ast import *
+
 @pg.production("main : statements")
 def main(p):
     return p[0]
 
 @pg.production("statements : statements statement")
 def statements(p):
-    return p[0]
+    return s_add_list(p[0], p[1])
+    
 
 @pg.production("statements : statement")
 def statements_statement(p):
-    return p[0]
+    #return p[0]
+    return S_List([p[0]])
 
 # Allow for terminals before the statement.
 @pg.production("statements : TERMINAL statement")
-def statements_statement(p):
-    return p[0]
+def statements_terminal_pre_statement(p):
+    #return p[1]
+    return S_List([p[1]])
 
 # Whole-line comments
 @pg.production("statement : COMMENT TERMINAL")
 def statement_comment(p):
-    return p[0]
+    return S_Comment(p[0].getstr())
 
-@pg.production("statement : expression COMMENT TERMINAL")
+@pg.production("statement : expressions COMMENT TERMINAL")
 def statement_with_comment(p):
-    return p[0]
+    return p[0] # S_List
 
-@pg.production("statement : expression TERMINAL")
-def statement(p):
-    return p[0]
+@pg.production("statement : expressions TERMINAL")
+def statement_with_terminal(p):
+    # p_s = P_Statement()
+    # p_s.expressions = p[0]
+    # return p_s
+    return p[0] # S_Statement
 
-# Expressions must be separated by either a continuation (CONT) or
-# significant whitespace.
-@pg.production("expression : expression CONT expression")
-def expressions_with_cont(p):
-    #print p
-    return p[0]
+@pg.production("expressions : expression")
+def expressions_single(p):
+    return S_Statement([p[0]])
+    #return p[0]
 
-@pg.production("expression : expression SWS expression")
+@pg.production("expressions : expressions CONT expression")
+@pg.production("expressions : expressions SWS expression")
 def expressions(p):
-    #print p
-    return p[0]
-
-@pg.production("expression : LPAREN expression RPAREN")
+    return s_add_statement(p[0], p[2])
+    #return p[0]
+    
+@pg.production("expression : LPAREN expressions RPAREN")
 def expression_group(p):
+    return p[1] # S_Statement
+
+@pg.production("block : block_right")
+def block_no_preface(p):
     return p[0]
 
+@pg.production("block : PREFACE block_right")
+def block_preface(p):
+    p[1].set_preface(p[0].getstr())
+    return p[1]
 
-@pg.production("block : PREFACE block")
+@pg.production("block_right : LBRACK block_inside RBRACK")
 def block(p):
-    return p[0]
-
-@pg.production("block : LBRACK block_inside RBRACK")
-def block(p):
-    return p[0]
+    return p[1] # S_Block
 
 @pg.production("block_inside : block_header block_body")
-def block(p):
-    return p[0]
+def block_inside_both(p):
+    # S_Block(S_List, S_List)
+    return S_Block(p[0], p[1])
 
 @pg.production("block_inside : block_body")
-def block(p):
-    return p[0]
+def block_inside(p):
+    # S_Block(None, S_List)
+    return S_Block(None, p[0])
 
 # Allow for multiple statements and a trailing expression (expression w/out
 # terminals).
 @pg.production("block_body : statements")
 def block(p):
-    return p[0]
+    return p[0] # S_List
 
-@pg.production("block_body : statements expression")
+@pg.production("block_body : statements expressions")
 def block(p):
-    return p[0]
+    return s_add_list(p[0], p[1])
 
-@pg.production("block_body : expression")
-def block(p):
-    return p[0]
+@pg.production("block_body : expressions")
+def block_body_single(p):
+    return S_List([p[0]])
 
 # TODO: Make special production for block header.
 @pg.production("block_header : VERT array_inside VERT")
-def block(p):
-    return p[0]
+def block_header(p):
+    return p[1]
 
 @pg.production("array : LSQ array_inside RSQ")
 def array(p):
-    return p[0]
+    return p[1]
 
 @pg.production("array : LSQ RSQ")
 def array_empty(p):
-    return p[0]
+    #return "empty array"
+    #return p[0]
+    return S_List([])
 
 @pg.production("array_inside : expression COMMA array_inside")
 def array_multi(p):
-    return p[0]
+    #return [p[0], p[2]]
+    #return p[0]
+    return s_add_list(p[2], p[0])
 
 @pg.production("array_inside : expression")
 def array_single(p):
-    return p[0]
+    #return p[0]
+    return S_List([p[0]])
 
 # Expressions:
 
 @pg.production("expression : array")
 def expression_array(p):
-    return p[0]
+    return S_Array(p[0])
 
 @pg.production("expression : block")
 def expression_block(p):
-    return p[0]
+    return p[0] # S_Block
 
 @pg.production("expression : KEYWORD")
 def expression_keyword(p):
-    return p[0].value
+    return S_Keyword(p[0].getstr())
 
 @pg.production("expression : OPERATOR")
 def expression_operator(p):
-    return p[0].value
+    return S_Operator(p[0].getstr())
 
 @pg.production("expression : IDENTIFIER")
 def expression_identifier(p):
-    return p[0].value
-
+    return S_Identifier(p[0].getstr())
+    
 @pg.production("expression : SYMBOL")
 def expression_symbol(p):
-    return p[0].value
+    return S_Symbol(p[0].getstr())
 
 @pg.production("expression : INTEGER")
 def expression_int(p):
-    return p[0].value
+    return S_Int(int(p[0].getstr()))
 
 @pg.production("expression : STRING")
 def expression_string(p):
-    return p[0].value
+    return S_String(p[0].getstr())
 
 @pg.production("expression : INTEGER DECIMAL")
 def expression_float(p):
-    return p[0].value
+    f = p[0].getstr() + p[1].getstr()
+    return S_Float(float(f))
+    
 
 lexer = lg.build()
 parser = pg.build()
 
 def parse(body):
-    parser.parse(lexer.lex(body))
+    return parser.parse(lexer.lex(body))
