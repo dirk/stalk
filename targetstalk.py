@@ -57,8 +57,7 @@ def entry_point(argv):
     #         #     self.colno = colno
     #         print "idx: %d lineno: %d colno: %d" % (sp.idx, sp.lineno, sp.colno)
     #         print prog[sp.idx - 4:sp.idx + 4].__repr__()
-    print interp
-    print interp.root.locals
+    
     return 0
 
 def target(*args):

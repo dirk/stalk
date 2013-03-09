@@ -54,6 +54,15 @@ class S_Statement(S_List):
         
         sigs = [m.get_signature() for m in recv.methods.values()]
         
+        if expr.__class__ == S_Identifier:
+            for sig in sigs:
+                if len(sig) != 1:
+                    next
+                s0 = sig[0]
+                if type(s0) == S_Identifier and s0.get_value() == expr.get_value():
+                    self.e_send_sig = compile_signature(sig)
+                    self.e_send_params = []
+                    return True
         if expr.__class__ == S_Operator:
             nexpr = self.next()
             if not nexpr:
@@ -186,10 +195,7 @@ class S_Expression(BaseBox):
     def get_value(self):
         return str(self.value)
     def eval(self, scope):
-        #print self
-        #pass
-        print self.type
-        print self.value
+        raise NotImplementedError("Reached raw expression")
 
 class S_Comment(S_Expression):
     def __init__(self, value):

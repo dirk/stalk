@@ -27,6 +27,22 @@ class SL_Object(object):
 class SL_Primitive(SL_Object):
     pass
 
+class SL_Null(SL_Primitive):
+    def __init__(self):
+        self.value = None
+        self.prototype = None
+        self.methods = {}
+    def get_name(self):
+        return "Null"
+    def get_prototype(self):
+        return self.prototype
+    def get_values(self):
+        return {}
+    def get_value(self):
+        return self.value
+    def promote(self):
+        return NotImplementedError("Not implemented")
+
 # TODO: Maybe not have this be a primitive?
 class SL_Exception(SL_Primitive):
     def __init__(self, desc):
@@ -52,6 +68,7 @@ class SL_Int(SL_Primitive):
         
         import primitives
         self.methods[primitives.int_addition.get_compiled_signature()] = primitives.int_addition
+        self.methods[primitives.int_println.get_compiled_signature()] = primitives.int_println
         
     def get_value(self):
         return self.value
