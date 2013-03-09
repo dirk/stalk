@@ -24,7 +24,8 @@ string = "other string"
 # The auto preface tag tells it to set up the block parameters automatically.
 # ie. in this case auto will inject "|one, two|".
 my_method: one other: two <closed,auto>{
-  return: one * two
+  b = one * two
+  return: b
 }
 four = my_method: one other: two
 
