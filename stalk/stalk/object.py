@@ -35,8 +35,17 @@ class SL_Object(object):
         return self.prototype
     def get_methods(self):
         return self.methods
+    def get_signatures(self):
+        return [m.get_signature() for m in self.methods.values()]
     def receive(self, signature):
         return None # TODO: Make this work
+    def define_method(self, method):
+        self.methods[method.get_compiled_signature()] = method
+    def send(self, sig, params): # Receive (compiled) signature and data tuples
+        if sig in self.methods.keys():
+            return self.methods[sig].call(self, params)
+        else:
+            return None
 
 class SL_Primitive(SL_Object):
     def get_values(self):
@@ -168,8 +177,10 @@ class SL_String(SL_Primitive):
         else:
             return None
 
-class SL_Method(object):
-    def __init__(self, parent):
+from stalk.interpreter import Scope
+
+class SL_Method(SL_Object):
+    def __init__(self, signature, block, closure):
         self.signature = None
         # Signature:
         #   For "a"
@@ -183,14 +194,36 @@ class SL_Method(object):
         #     )
         #   For "+ b"
         #     (S_Operator(+), S_Identifier(b))
-        self.parent = parent # The SL_Object the method is bound to.
-        self.list = None # S_List[S_Block]
+        # self.parent = parent # The SL_Object the method is bound to.
+        
+        self.block = block # S_Block
+        self.signature = signature # [...]
+        # self.methods = { self.get_compiled_signature(): self }
+        self.methods = {}
+        self.closure = closure
     def is_primitive(self):
         return False
     def get_signature(self):
         return self.signature
     def get_compiled_signature(self):
         return compile_signature(self.signature)
+    def _params(self):
+        p = []
+        for s in self.signature:
+            if type(s) == S_Identifier:
+                p.append(s)
+        return p
+    def call(self, parent, args):
+        s = Scope()
+        s.set_parent(self.closure)
+        s.set_local("this", parent)
+        i = 0
+        params = self._params()
+        while i < len(args):
+            s.set_local(params[i].get_value(), args[i])
+            i += 1
+        ret = self.block.eval(s)
+        return ret
 
 class SL_Primitive_Method(SL_Method):
     # _annspecialcase_ = 'specialize:ctr_location'
@@ -198,7 +231,6 @@ class SL_Primitive_Method(SL_Method):
     def __init__(self, signature, primitive):
         self.signature = signature
         self.primitive = primitive
-        self.parent = None
     def is_primitive(self):
         return True
     def set_primitive(self, meth):

@@ -12,7 +12,7 @@ def _int_add(method, args):
 int_addition = SL_Primitive_Method([S_Operator("+"), S_Identifier("other")], _int_add)
 
 def _int_println(method, args): # args = empty
-    print method.parent.__repr__()
+    print method.parent.get_value_string()
     return method.parent
 int_println = SL_Primitive_Method([S_Identifier("println")], _int_println)
 
