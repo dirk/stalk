@@ -1,7 +1,9 @@
 
 from ast import S_List
 
-class Scope(object):
+from stalk.object import SL_Object
+
+class Scope(SL_Object):
     # Represents a specific scope within which expressions (normally from the
     # AST) are evaluated.
     
@@ -9,6 +11,10 @@ class Scope(object):
         self.locals = {}
         self.parent = None
         self.root = None # Quick jump to the root scope.
+        self.methods = {}
+    
+    def set_parent(self, parent):
+        self.parent = parent
     
     # Resolves an identifier
     def get(self, name):
@@ -54,6 +60,7 @@ class RootScope(Scope):
         self.locals = {}
         self.parent = None
         self.root = self
+        self.methods = {}
 
 class Interpreter(object):
     def __init__(self, _list):
