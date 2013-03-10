@@ -21,7 +21,6 @@ SigSort = make_timsort_class(lt = _sig_comp)
 
 
 class S_Statement(S_List):
-    
     def __init__(self, exprs):
         self.expressions = exprs
     def get_expressions(self):
@@ -52,16 +51,14 @@ class S_Statement(S_List):
                     scope.set_local(expr.get_value(), ret)
                 self.e_ec = self.e_end
                 return
-        #et = type(expr)
-        if "eval" in dir(expr):
-            self.e_target = expr.eval(scope)
-        else:
+        # TODO: Ensure 100% eval-availability so we can ditch this.
+        #       Includes having to deal with comments.
+        try:
+            ev = expr.eval
+        except AttributeError as e:
             raise NotImplementedError("Unknown expression: "+str(expr.__class__))
-        #if et == S_Int or et == S_Identifier or et == S_String:
-        #    self.e_target = expr.eval(scope)
-        #else:
-        #    print scope.locals
-        #    raise NotImplementedError("Unknown expression: "+str(expr.__class__))
+        self.e_target = ev(scope)
+        
     def next(self):
         self.e_ec += 1
         if self.e_ec < self.e_end:
@@ -237,33 +234,20 @@ class S_Comment(S_Expression):
     def get_value(self):
         return "#comment"
 
-class S_Array(S_Expression):
+class S_Operator(S_Expression):
     def __init__(self, value):
-        self.type = "array"
-        self.value = "[array]"
-        # List of expressions to be evaluated into array contents.
-        self.list = value
+        self.type = "operator"
+        self.value = value
     def __repr__(self):
-        return "s_array("+self.list.__repr__()+")"
+        return self.value
     def get_value(self):
-        #return self.list
-        return "[array]"
+        return self.value
+    def eq(self, other):
+        if type(self) == type(other):
+            return self.value == other.get_value()
+        else:
+            return False
 
-class S_Block(S_Expression):
-    def __init__(self, _header, value):
-        self.type = "block"
-        # List of expressions to be evaluated for the block.
-        self.list = value
-        self.header = _header
-        self.preface = None
-    def __repr__(self):
-        return "s_block()"
-    def get_value(self):
-        #return (self.preface, self.list)
-        return "[block]"
-    def set_preface(self, preface):
-        self.preface = preface
-    
 class S_Identifier(S_Expression):
     def __init__(self, value):
         self.type = "identifier"
@@ -294,19 +278,41 @@ class S_Keyword(S_Expression):
         else:
             return False
 
-class S_Operator(S_Expression):
+from stalk.object import SL_Null, SL_Array
+
+class S_Array(S_Expression):
     def __init__(self, value):
-        self.type = "operator"
-        self.value = value
+        self.type = "array"
+        self.value = "[array]"
+        # List of expressions to be evaluated into array contents.
+        self.list = value
     def __repr__(self):
-        return self.value
+        return "s_array("+self.list.__repr__()+")"
+    def eval(self, scope):
+        nodes = self.list.get_nodes()
+        a = []
+        for st in nodes:
+            a.insert(0, st.eval(scope))
+        return SL_Array(a)
     def get_value(self):
-        return self.value
-    def eq(self, other):
-        if type(self) == type(other):
-            return self.value == other.get_value()
-        else:
-            return False
+        #return self.list
+        return "[array]"
+
+class S_Block(S_Expression):
+    def __init__(self, _header, value):
+        self.type = "block"
+        # List of expressions to be evaluated for the block.
+        self.list = value
+        self.header = _header
+        self.preface = None
+    def __repr__(self):
+        return "s_block()"
+    def get_value(self):
+        #return (self.preface, self.list)
+        return "[block]"
+    def set_preface(self, preface):
+        self.preface = preface
+
 
 class S_Literal(S_Expression):
     pass
