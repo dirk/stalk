@@ -1,11 +1,25 @@
 from stalk.ast import S_Operator, S_Identifier, S_Keyword
 
 def compile_signature(sig):
-    parts = []
-    for e in sig:
-        if type(e) == S_Operator or type(e) == S_Identifier or type(e) == S_Keyword:
-            parts.append(e.get_value())
-    return "".join(parts)
+    #parts = []
+    #for e in sig:
+    #    if type(e) == S_Operator or type(e) == S_Identifier or type(e) == S_Keyword:
+    #        parts.append(e.get_value())
+    #return "".join(parts)
+    if len(sig) == 1:
+        s = sig[0]
+        if type(s) == S_Identifier:
+            return s.get_value()
+        else:
+            raise Exception("Unexpected signature: "+repr(sig))
+    elif len(sig) == 2 and type(sig[0]) == S_Operator:
+        return sig[0].get_value()
+    else:
+        parts = []
+        for s in sig:
+            if type(s) == S_Keyword:
+                parts.append(s.get_value())
+        return "".join(parts)
 
 class SL_Object(object):
     def __init__(self):
@@ -178,7 +192,7 @@ class SL_Method(object):
     def get_compiled_signature(self):
         return compile_signature(self.signature)
 
-class SL_Primitive_Method(object):
+class SL_Primitive_Method(SL_Method):
     # _annspecialcase_ = 'specialize:ctr_location'
     
     def __init__(self, signature, primitive):
