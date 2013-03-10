@@ -104,13 +104,13 @@ def block(p):
 
 @pg.production("block_inside : block_header block_body")
 def block_inside_both(p):
-    # S_Block(S_List, S_List)
+    # S_Block(S_List[...], S_List)
     return S_Block(p[0], p[1])
 
 @pg.production("block_inside : block_body")
 def block_inside(p):
-    # S_Block(None, S_List)
-    return S_Block(None, p[0])
+    # S_Block(S_List[], S_List)
+    return S_Block(S_List([]), p[0])
 
 # Allow for multiple statements and a trailing expression (expression w/out
 # terminals).
@@ -127,9 +127,17 @@ def block_body_single(p):
     return S_List([p[0]])
 
 # TODO: Make special production for block header.
-@pg.production("block_header : VERT array_inside VERT")
+@pg.production("block_header : VERT block_header_inside VERT")
 def block_header(p):
     return p[1]
+
+@pg.production("block_header_inside : block_header_inside COMMA IDENTIFIER")
+def block_header_inside_multi(p):
+    return s_add_list(p[0], S_Identifier(p[2].getstr()))
+
+@pg.production("block_header_inside : IDENTIFIER")
+def block_header_inside_single(p):
+    return S_List([S_Identifier(p[0].getstr())])
 
 @pg.production("array : LSQ array_inside RSQ")
 def array(p):
@@ -141,11 +149,11 @@ def array_empty(p):
     #return p[0]
     return S_List([])
 
-@pg.production("array_inside : expression COMMA array_inside")
+@pg.production("array_inside : array_inside COMMA expression")
 def array_multi(p):
     #return [p[0], p[2]]
     #return p[0]
-    return s_add_list(p[2], p[0])
+    return s_add_list(p[0], p[2])
 
 @pg.production("array_inside : expression")
 def array_single(p):
