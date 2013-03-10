@@ -15,19 +15,23 @@ class S_List(BaseBox):
         return self.nodes
     def __repr__(self):
         return "s("+(",".join([n.__repr__() for n in self.nodes]))+")"
-    def eval(self, scope):
-        # TODO: Fix all these co-dependent import hacks.
+    def eval_shallow(self, scope):
+        # Passes ReturnExceptions up the chain
         from stalk.object import SL_Method
         ret = None
+        for stmt in self.nodes:
+            ret = stmt.eval(scope)
+            # If it's a plain method then add it to the scope.
+            if type(ret) == SL_Method:
+                scope.define_method(ret)
+        return ret
+    def eval(self, scope):
+        # TODO: Fix all these co-dependent import hacks.
         try:
-            for stmt in self.nodes:
-                ret = stmt.eval(scope)
-                # If it's a plain method then add it to the scope.
-                if type(ret) == SL_Method:
-                    scope.define_method(ret)
+            return self.eval_shallow(scope)
         except ReturnException as re:
             return re.get_return()
-        return ret
+        
 
 from rpython.rlib.listsort import make_timsort_class
 def _sig_comp(a, b):
@@ -46,6 +50,10 @@ class S_Statement(S_List):
         from stalk.object import SL_String, compile_signature
         scope = self.e_scope
         expr = self.e_expr
+        # Leading keyword without target then it's a send
+        if type(expr) == S_Keyword:
+            self.do_send()
+            return
         # Peek ahead
         nexti = self.e_ec + 1
         if (nexti) < self.e_end:
@@ -80,6 +88,10 @@ class S_Statement(S_List):
             return self.expressions[ei]
         else:
             return None
+    def reset_to_counter(self, counter):
+        self.e_ec = counter
+        self.e_expr = self.expressions[self.e_ec]
+        return self.e_expr
     def next(self):
         self.e_ec += 1
         if self.e_ec < self.e_end:
@@ -140,9 +152,12 @@ class S_Statement(S_List):
         if len(sig) == 0:
             raise Exception("Missing method definition: "+repr(e))
         # TODO: Fix all these co-dependent import hacks.
-        from stalk.object import SL_Method
-        self.e_target = SL_Method(sig, block, self.e_scope)
-        self.next()
+        if block:
+            from stalk.object import SL_Method
+            self.e_target = SL_Method(sig, block.eval(self.e_scope), self.e_scope)
+            self.next()
+        else:
+            raise Exception("Block missing!")
         return True
         
     def match_send(self, recv):
@@ -188,15 +203,24 @@ class S_Statement(S_List):
                     self.e_send_sig = compile_signature(sig)
                     self.e_send_params = [nexpr]
                     return True
+        # Filter out to just be keyword sigs now
+        _sigs = []
+        for sig in sigs:
+            if type(sig[0]) == S_Keyword:
+                _sigs.append(sig)
+        sigs = _sigs
         exprs = []
         si = 0
         is_keyword = True
+        prev_e_ec = self.e_ec
         while expr:
             if len(sigs) == 0:
                 return False
             if is_keyword:
                 if expr.__class__ != S_Keyword:
                     # TODO: Decide whether this should be greedy or not
+                    #self.prev() # Rewind to before the one we just consumed
+                    self.reset_to_counter(prev_e_ec)
                     break # <- non-greedy
                     #raise Exception("Unexpected non-keyword: "+expr.__repr__())
                 _sigs = []
@@ -217,10 +241,10 @@ class S_Statement(S_List):
                     exprs.append(expr)
                 else:
                     raise Exception("Unexpected keyword: "+expr.__repr__())
+            prev_e_ec = self.e_ec
             expr = self.next()
             is_keyword = not is_keyword # Flip for style!
             si += 1
-        
         if len(sigs) > 0:
             # Sort in descending order (longest matched sig first)
             SigSort(sigs).sort()
@@ -245,6 +269,9 @@ class S_Statement(S_List):
             if ret:
                 self.e_target = ret
             else:
+                print sig
+                print target.methods.keys()
+                print ret
                 raise Exception("Method not found")
         else:
             if self.e_ec >= self.e_end:
@@ -281,7 +308,8 @@ class S_Statement(S_List):
                     re = ReturnException(ret)
                     raise re
                 else: # Not a def but still a top-level method call
-                    self.do_send()
+                    # self.do_send()
+                    pass
             if type(self.e_expr) == S_Identifier and self.e_expr.get_value() == "return":
                 if self.e_target:
                     # return self.e_target
@@ -305,7 +333,10 @@ class S_Statement(S_List):
         self.e_scope = None
         self.e_send_sig = None
         self.e_send_params = None
-        return target
+        if target:
+            return target
+        else:
+            return SL_Null()
 
 def s_add_list(box_list, other):
     _list = box_list.get_nodes() if box_list is not None else []
@@ -323,6 +354,8 @@ class S_Expression(BaseBox):
         return self.type+":"+self.value
     def get_value(self):
         return str(self.value)
+    def get_list(self):
+        return S_List([self])
     def eval(self, scope):
         raise NotImplementedError("Reached raw expression: "+repr(self))
     def eq(self, other):
@@ -395,31 +428,38 @@ class S_Array(S_Expression):
         return "s_array("+self.list.__repr__()+")"
     def eval(self, scope):
         nodes = self.list.get_nodes()
-        a = []
-        for st in nodes:
-            a.insert(0, st.eval(scope))
+        a = [st.eval(scope) for st in nodes]
+        #for st in nodes:
+        #    a.insert(0, st.eval(scope))
         return SL_Array(a)
     def get_value(self):
         #return self.list
         return "[array]"
 
+from stalk.object import SL_Block
+
 class S_Block(S_Expression):
     def __init__(self, _header, value):
         self.type = "block"
         # List of expressions to be evaluated for the block.
-        self.list = value # S_List
-        self.header = _header
+        self.list = value # S_List[exprs]
+        self.header = _header # S_List[identifiers]
         self.preface = None
     def __repr__(self):
-        return "s_block("+repr(self.list)+")"
+        return "s_block(|"+repr(self.header)+"| "+repr(self.list)+")"
     def get_value(self):
         #return (self.preface, self.list)
         return "[block]"
+    def get_list(self):
+        return self.list
+    def get_header(self):
+        return self.header
     def set_preface(self, preface):
         self.preface = preface
     def eval(self, scope):
-        ret = self.list.eval(scope)
-        return ret
+        #ret = self.list.eval(scope)
+        #return ret
+        return SL_Block(self, scope)
 
 
 class S_Literal(S_Expression):
