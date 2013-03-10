@@ -33,7 +33,33 @@ class SL_Primitive(SL_Object):
         return 0
     def get_value_string(self):
         return ""
-    
+    def get_value_array(self):
+        return []
+
+array_methods = {}
+class SL_Array(SL_Primitive):
+    def __init__(self, value):
+        self.value = None
+        self.prototype = None
+        self.methods = array_methods
+        self.value = value
+    def get_name(self):
+        return "Array"
+    def get_prototype(self):
+        return self.prototype
+    def get_values(self):
+        return {}
+    def get_value(self):
+        return self.value
+    def get_value_array(self):
+        return self.value
+    def promote(self):
+        return NotImplementedError("Not implemented")
+    def send(self, sig, params): # Receive (compiled) signature and data tuples
+        if sig in self.methods.keys():
+            return self.methods[sig].call(self, params)
+        else:
+            return None
 
 class SL_Null(SL_Primitive):
     def __init__(self):
@@ -93,7 +119,7 @@ class SL_Int(SL_Primitive):
     def get_value_string(self):
         return str(self.value)
     def __repr__(self):
-        return str(self.value)
+        return "SL_Int:"+str(self.value)
     def get_name(self):
         return "Int"
     def promote(self):
@@ -182,4 +208,9 @@ int_methods[primitives.int_println.get_compiled_signature()]  = primitives.int_p
 int_methods[primitives.int_string.get_compiled_signature()]   = primitives.int_string
 
 string_methods[primitives.string_println.get_compiled_signature()] = primitives.string_println
-string_methods[primitives.string_add.get_compiled_signature()] = primitives.string_add
+string_methods[primitives.string_add.get_compiled_signature()]     = primitives.string_add
+string_methods[primitives.string_string.get_compiled_signature()]  = primitives.string_string
+
+array_methods[primitives.array_println.get_compiled_signature()]  = primitives.array_println
+array_methods[primitives.array_string.get_compiled_signature()]   = primitives.array_string
+

@@ -36,6 +36,13 @@ string_println = SL_Primitive_Method(
     _string_println
 )
 
+def _string_string(method, args):
+    return method.parent
+string_string = SL_Primitive_Method(
+    [S_Identifier("string")],
+    _string_string
+)
+
 def _string_add(method, args):
     if type(args[0]) == SL_String:
         v = method.parent.get_value_string() + args[0].get_value_string()
@@ -45,4 +52,22 @@ def _string_add(method, args):
 string_add = SL_Primitive_Method(
     [S_Operator("+"), S_Identifier("other")],
     _string_add
+)
+
+def _array_string(method, args):
+    a = method.parent.get_value_array()
+    sig = "string" #[S_Identifier("string")]
+    ao = [o.send(sig, []).get_value_string() for o in a]
+    return SL_String("["+",".join(ao)+"]")
+array_string = SL_Primitive_Method(
+    [S_Identifier("string")],
+    _array_string
+)
+
+def _array_println(method, args):
+    print _array_string(method, [])
+    return method.parent
+array_println = SL_Primitive_Method(
+    [S_Identifier("println")],
+    _array_println
 )
