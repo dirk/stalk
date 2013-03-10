@@ -6,7 +6,7 @@ class Scope(object):
     # AST) are evaluated.
     
     def __init__(self):
-        self.locals = dict()
+        self.locals = {}
         self.parent = None
         self.root = None # Quick jump to the root scope.
     
@@ -35,7 +35,7 @@ class Scope(object):
 
 class SymbolTable(object):
     def __init__(self):
-        self.table = dict()
+        self.table = {}
         self.counter = 0
     def lookup(self, name):
         if name in self.table:
@@ -51,7 +51,7 @@ class RootScope(Scope):
         #super(RootScope, self).__init__()
         #RootScope.__init__(self)
         # Can't do super-stuff:
-        self.locals = dict()
+        self.locals = {}
         self.parent = None
         self.root = self
 

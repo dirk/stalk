@@ -1,2 +1,2 @@
-a = 2
-a println
+a = 2 + 8
+("test" + (a string)) println

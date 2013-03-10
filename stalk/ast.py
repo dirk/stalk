@@ -18,7 +18,10 @@ def _sig_comp(a, b):
     return len(a) > len(b) # Descending order by length
 SigSort = make_timsort_class(lt = _sig_comp)
 
+
+
 class S_Statement(S_List):
+    
     def __init__(self, exprs):
         self.expressions = exprs
     def get_expressions(self):
@@ -26,6 +29,7 @@ class S_Statement(S_List):
     def __repr__(self):
         return "st("+(",".join([e.__repr__() for e in self.expressions]))+")"
     def set_target(self):
+        from stalk.object import SL_String, compile_signature
         scope = self.e_scope
         expr = self.e_expr
         # Peek ahead
@@ -41,18 +45,23 @@ class S_Statement(S_List):
                 ret = self.eval_assign()
                 if self.e_target:
                     self.e_target.send(
-                        [nexpr], # [S_Operator(=)]
+                        compile_signature([nexpr]), # [S_Operator(=)]
                         [SL_String(expr.get_value()), ret]
                     )
                 else:
                     scope.set_local(expr.get_value(), ret)
                 self.e_ec = self.e_end
                 return
-        if expr.__class__ == S_Int or expr.__class__ == S_Identifier:
+        #et = type(expr)
+        if "eval" in dir(expr):
             self.e_target = expr.eval(scope)
         else:
-            print scope.locals
             raise NotImplementedError("Unknown expression: "+str(expr.__class__))
+        #if et == S_Int or et == S_Identifier or et == S_String:
+        #    self.e_target = expr.eval(scope)
+        #else:
+        #    print scope.locals
+        #    raise NotImplementedError("Unknown expression: "+str(expr.__class__))
     def next(self):
         self.e_ec += 1
         if self.e_ec < self.e_end:
@@ -67,7 +76,7 @@ class S_Statement(S_List):
         ret = substatement.eval(scope)
         return ret
     def match_send(self):
-        from stalk.object import compile_signature # TODO: Inline this
+        from stalk.object import compile_signature
         
         # Reset the send data
         self.e_send_sig = None
@@ -100,18 +109,11 @@ class S_Statement(S_List):
                 if len(sig) != 2:
                     next
                 s0 = sig[0]
-                if type(s0) == S_Operator and s0.get_value() == expr.get_value():
+                #if type(s0) == S_Operator and s0.get_value() == expr.get_value():
+                if s0.eq(expr):
                     self.e_send_sig = compile_signature(sig)
                     self.e_send_params = [nexpr]
                     return True
-                    # 
-                    # # Peek ahead
-                    # if (self.e_ec + 1) < self.e_end:
-                    #     nexpr = self.expressions[self.e_ec + 1]
-                    #     if nexpr.__class__ != S_Keyword and \
-                    #        sig[1].__class__ == S_Identifier:
-                    #     #/if
-                    #         return (sig, (nexpr,))
         exprs = []
         si = 0
         is_keyword = True
@@ -126,8 +128,9 @@ class S_Statement(S_List):
                     se = sig[si]
                     # TODO: Return to this and make it just one if (currently
                     #       the first one is just to appease PyPy).
-                    if isinstance(expr, S_Keyword) and isinstance(se, S_Keyword):
-                        if expr.get_value() == se.get_value():
+                    #if isinstance(expr, S_Keyword) and isinstance(se, S_Keyword):
+                    #    if expr.get_value() == se.get_value():
+                    if expr.eq(se):
                             _sigs.append(sig)
                     
                     
@@ -220,6 +223,8 @@ class S_Expression(BaseBox):
         return str(self.value)
     def eval(self, scope):
         raise NotImplementedError("Reached raw expression")
+    def eq(self, other):
+        return self == other
 
 class S_Comment(S_Expression):
     def __init__(self, value):
@@ -283,6 +288,11 @@ class S_Keyword(S_Expression):
         return self.value
     def get_value(self):
         return self.value
+    def eq(self, other):
+        if type(self) == type(other):
+            return self.value == other.get_value()
+        else:
+            return False
 
 class S_Operator(S_Expression):
     def __init__(self, value):
@@ -292,6 +302,11 @@ class S_Operator(S_Expression):
         return self.value
     def get_value(self):
         return self.value
+    def eq(self, other):
+        if type(self) == type(other):
+            return self.value == other.get_value()
+        else:
+            return False
 
 class S_Literal(S_Expression):
     pass
@@ -304,8 +319,13 @@ class S_Symbol(S_Literal):
         return self.value
     def get_value(self):
         return self.value
+    def eq(self, other):
+        if type(self) == type(other):
+            return self.value == other.get_value()
+        else:
+            return False
 
-from stalk.bootstrap import SL_Int
+from stalk.object import SL_Int
 
 class S_Int(S_Literal):
     def __init__(self, value):
@@ -316,10 +336,13 @@ class S_Int(S_Literal):
         return str(self.int)
     def get_value(self):
         return str(self.int)
-    def to_primitive(self):
-        return SL_Int(self.int)
     def eval(self, scope):
-        return self.to_primitive()
+        return SL_Int(self.int)
+    def eq(self, other):
+        if type(self) == type(other):
+            return self.value == other.get_value()
+        else:
+            return False
 
 class S_Float(S_Literal):
     def __init__(self, value):
@@ -330,13 +353,28 @@ class S_Float(S_Literal):
         return str(self.float)
     def get_value(self):
         return str(self.float)
+    def eq(self, other):
+        if type(self) == type(other):
+            return self.value == other.get_value()
+        else:
+            return False
+
+from stalk.object import SL_String
 
 class S_String(S_Literal):
     def __init__(self, value):
         self.type = "string"
         self.value = "[string]"
-        self.string = value
+        # TODO: String parsing
+        self.string = value[1:-1]# Strip off leading and trailing "s
     def __repr__(self):
         return repr(self.string)
     def get_value(self):
         return self.string
+    def eval(self, scope):
+        return SL_String(self.string)
+    def eq(self, other):
+        if type(self) == type(other):
+            return self.value == other.get_value()
+        else:
+            return False

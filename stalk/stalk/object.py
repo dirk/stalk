@@ -1,9 +1,9 @@
-from stalk.ast import S_Operator, S_Identifier
+from stalk.ast import S_Operator, S_Identifier, S_Keyword
 
 def compile_signature(sig):
     parts = []
     for e in sig:
-        if type(e) == S_Operator:
+        if type(e) == S_Operator or type(e) == S_Identifier or type(e) == S_Keyword:
             parts.append(e.get_value())
     return "".join(parts)
 
@@ -25,17 +25,14 @@ class SL_Object(object):
         return None # TODO: Make this work
 
 class SL_Primitive(SL_Object):
-    def get_value(self):
-        return self.value
     def get_values(self):
         return {}
     def get_methods(self):
         return self.methods
-    def send(self, sig, params): # Receive (compiled) signature and data tuples
-        if sig in self.methods.keys():
-            return self.methods[sig].call(self, params)
-        else:
-            return None
+    def get_value_int(self):
+        return 0
+    def get_value_string(self):
+        return ""
     
 
 class SL_Null(SL_Primitive):
@@ -53,6 +50,11 @@ class SL_Null(SL_Primitive):
         return self.value
     def promote(self):
         return NotImplementedError("Not implemented")
+    def send(self, sig, params): # Receive (compiled) signature and data tuples
+        if sig in self.methods.keys():
+            return self.methods[sig].call(self, params)
+        else:
+            return None
 
 # TODO: Maybe not have this be a primitive?
 class SL_Exception(SL_Primitive):
@@ -70,34 +72,61 @@ class SL_Exception(SL_Primitive):
         return self.value
     def promote(self):
         return NotImplementedError("Not implemented")
+    def send(self, sig, params): # Receive (compiled) signature and data tuples
+        if sig in self.methods.keys():
+            return self.methods[sig].call(self, params)
+        else:
+            return None
 
+# Is filled with primitive methods for integers at the bottom of this file.
+int_methods = {}
 class SL_Int(SL_Primitive):
     def __init__(self, value):
-        self.value = value
+        self.value = int(value)
         self.prototype = None
-        self.methods = {}
+        self.methods = int_methods
         
-        import primitives
-        self.methods[primitives.int_addition.get_compiled_signature()] = primitives.int_addition
-        self.methods[primitives.int_println.get_compiled_signature()] = primitives.int_println
-        
+    def get_value_int(self):
+        return self.value
+    def get_value(self):
+        return self.value
+    def get_value_string(self):
+        return str(self.value)
+    def __repr__(self):
+        return str(self.value)
     def get_name(self):
         return "Int"
     def promote(self):
         # TODO: Make this work for promoting to a regular object.
         return NotImplementedError("Not implemented")
+    def send(self, sig, params): # Receive (compiled) signature and data tuples
+        if sig in self.methods.keys():
+            return self.methods[sig].call(self, params)
+        else:
+            return None
 
+string_methods = {}
 class SL_String(SL_Primitive):
     def __init__(self, value):
         self.value = value
         self.prototype = None
-        self.methods = {}
-    
+        self.methods = string_methods
+    def get_value(self):
+        return self.value
+    def get_value_string(self):
+        return self.value
     def get_name(self):
         return "String"
+    def __repr__(self):
+        return self.value
     def promote(self):
         # TODO: Make this work for promoting to a regular object.
         return NotImplementedError("Not implemented")
+    def send(self, sig, params): # Receive (compiled) signature and data tuples
+        if sig in self.methods.keys():
+            return self.methods[sig].call(self, params)
+        else:
+            return None
 
 class SL_Method(object):
     def __init__(self, parent):
@@ -120,8 +149,12 @@ class SL_Method(object):
         return False
     def get_signature(self):
         return self.signature
+    def get_compiled_signature(self):
+        return compile_signature(self.signature)
 
 class SL_Primitive_Method(object):
+    # _annspecialcase_ = 'specialize:ctr_location'
+    
     def __init__(self, signature, primitive):
         self.signature = signature
         self.primitive = primitive
@@ -135,6 +168,7 @@ class SL_Primitive_Method(object):
         return compile_signature(self.signature)
     def get_signature(self):
         return self.signature
+    
     def call(self, parent, args):
         if not self.primitive:
             raise NotImplementedError("Primitive not implemented")
@@ -142,5 +176,10 @@ class SL_Primitive_Method(object):
             self.parent = parent
             return self.primitive(self, args)
 
+import primitives
+int_methods[primitives.int_addition.get_compiled_signature()] = primitives.int_addition
+int_methods[primitives.int_println.get_compiled_signature()]  = primitives.int_println
+int_methods[primitives.int_string.get_compiled_signature()]   = primitives.int_string
 
-
+string_methods[primitives.string_println.get_compiled_signature()] = primitives.string_println
+string_methods[primitives.string_add.get_compiled_signature()] = primitives.string_add
