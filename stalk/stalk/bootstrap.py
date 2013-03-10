@@ -33,4 +33,4 @@ def bootstrap(scope):
     
     # Create core types
     scope.locals["Int"] = _int()
-    scope.locals["one"] = SL_Int(1)
+    # scope.locals["one"] = SL_Int(1)

@@ -1,1 +1,2 @@
-2 + 2 println
+a = 2
+a println

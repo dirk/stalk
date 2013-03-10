@@ -28,10 +28,30 @@ class S_Statement(S_List):
     def set_target(self):
         scope = self.e_scope
         expr = self.e_expr
-        if expr.__class__ == S_Int:
-            self.e_target = expr.to_primitive()
+        # Peek ahead
+        nexti = self.e_ec + 1
+        if (nexti) < self.e_end:
+            nexpr = self.expressions[nexti]
+            if type(expr) == S_Identifier and type(nexpr) == S_Operator and \
+               nexpr.get_value() == "=":
+            #/if
+                self.expressions.pop(nexti)
+                self.expressions.insert(0, nexpr)
+                self.e_ec += 2 # Move it to the next expr after the =
+                ret = self.eval_assign()
+                if self.e_target:
+                    self.e_target.send(
+                        [nexpr], # [S_Operator(=)]
+                        [SL_String(expr.get_value()), ret]
+                    )
+                else:
+                    scope.set_local(expr.get_value(), ret)
+                self.e_ec = self.e_end
+                return
+        if expr.__class__ == S_Int or expr.__class__ == S_Identifier:
+            self.e_target = expr.eval(scope)
         else:
-            print expr
+            print scope.locals
             raise NotImplementedError("Unknown expression: "+str(expr.__class__))
     def next(self):
         self.e_ec += 1
@@ -40,6 +60,12 @@ class S_Statement(S_List):
             return self.e_expr
         else:
             return None
+    def eval_assign(self):
+        scope = self.e_scope
+        # Create a substatement to capture the assignment
+        substatement = S_Statement(self.expressions[self.e_ec:])
+        ret = substatement.eval(scope)
+        return ret
     def match_send(self):
         from stalk.object import compile_signature # TODO: Inline this
         
@@ -119,11 +145,10 @@ class S_Statement(S_List):
         
         if len(sigs) > 0:
             # Sort in descending order (longest matched sig first)
-            sigs = SigSort(sigs).sort()
-            if len(sigs) > 0:
-                self.e_send_sig = compile_signature(sigs[0])
-                self.e_send_params = exprs
-                return True
+            SigSort(sigs).sort()
+            self.e_send_sig = compile_signature(sigs[0])
+            self.e_send_params = exprs
+            return True
         # Didn't match!
         return False
         
@@ -166,17 +191,16 @@ class S_Statement(S_List):
                     else:
                         raise Exception("No method error")
             self.e_ec += 1
-        
-        
         # Teardown
         self.e_ec = 0
         self.e_end = 0
         self.e_expr = None
+        target = self.e_target
         self.e_target = None
         self.e_scope = None
         self.e_send_sig = None
         self.e_send_params = None
-        
+        return target
 
 def s_add_list(box_list, other):
     _list = box_list.get_nodes() if box_list is not None else []
@@ -243,6 +267,13 @@ class S_Identifier(S_Expression):
         return self.value
     def get_value(self):
         return self.value
+    def eval(self, scope):
+        return scope.get(self.value)
+        # slots = scope.keys()
+        # if self.value in slots:
+        #     return scope[self.value]
+        # else:
+        #     return SL_Exception("Not found: "+self.value)
 
 class S_Keyword(S_Expression):
     def __init__(self, value):
@@ -255,7 +286,7 @@ class S_Keyword(S_Expression):
 
 class S_Operator(S_Expression):
     def __init__(self, value):
-        self.type = "keyword"
+        self.type = "operator"
         self.value = value
     def __repr__(self):
         return self.value

@@ -25,7 +25,18 @@ class SL_Object(object):
         return None # TODO: Make this work
 
 class SL_Primitive(SL_Object):
-    pass
+    def get_value(self):
+        return self.value
+    def get_values(self):
+        return {}
+    def get_methods(self):
+        return self.methods
+    def send(self, sig, params): # Receive (compiled) signature and data tuples
+        if sig in self.methods.keys():
+            return self.methods[sig].call(self, params)
+        else:
+            return None
+    
 
 class SL_Null(SL_Primitive):
     def __init__(self):
@@ -70,28 +81,23 @@ class SL_Int(SL_Primitive):
         self.methods[primitives.int_addition.get_compiled_signature()] = primitives.int_addition
         self.methods[primitives.int_println.get_compiled_signature()] = primitives.int_println
         
-    def get_value(self):
-        return self.value
-    def get_values(self):
-        return {}
-    def get_methods(self):
-        # TODO: Make this return all the proper internal methods.
-        return self.methods
     def get_name(self):
         return "Int"
     def promote(self):
         # TODO: Make this work for promoting to a regular object.
         return NotImplementedError("Not implemented")
-    def send(self, sig, params): # Receive (compiled) signature and data tuples
-        if sig in self.methods.keys():
-            return self.methods[sig].call(self, params)
-        else:
-            return None
-        #print "sent:"
-        #print sig
-        #print params
-        #return None # TODO Make this work
-        
+
+class SL_String(SL_Primitive):
+    def __init__(self, value):
+        self.value = value
+        self.prototype = None
+        self.methods = {}
+    
+    def get_name(self):
+        return "String"
+    def promote(self):
+        # TODO: Make this work for promoting to a regular object.
+        return NotImplementedError("Not implemented")
 
 class SL_Method(object):
     def __init__(self, parent):
