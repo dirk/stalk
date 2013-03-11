@@ -31,6 +31,7 @@ typedef struct sl_s_expr {
 typedef struct sl_s_sym {
   SL_SYNTAX_TYPE
   SL_SYNTAX_LINKS
+  char *value;
   void* hint;//sl_d_sym_t
 } sl_s_sym_t;
 
