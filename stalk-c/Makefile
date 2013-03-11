@@ -1,9 +1,9 @@
 CC=gcc
-CFLAGS=-g -Wall -c -std=c99
+CFLAGS=-g -Wall -c -std=c99 -DHASH_FUNCTION=HASH_FNV
 LDFLAGS=
 
 # SOURCES=types.c system.c stalk.c
-SOURCES=symbol.c syntax.c stalk.c
+SOURCES=symbol.c syntax.c data.c stalk.c
 EXECUTABLE=stalk
 EXDIR=bin
 OBJECTS=$(SOURCES:.c=.o)
