@@ -31,7 +31,7 @@ typedef struct sl_s_expr {
 typedef struct sl_s_sym {
   SL_SYNTAX_TYPE
   SL_SYNTAX_LINKS
-  sl_d_sym_t* hint;
+  void* hint;//sl_d_sym_t
 } sl_s_sym_t;
 
 sl_s_expr_t* sl_s_expr_init();
