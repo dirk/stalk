@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "debug.h"
+
 #import "stalk.h"
 #import "data.h"
 #import "symbol.h"
@@ -30,10 +32,10 @@ sl_d_sym_t* sl_d_sym_new(char* name) {
   HASH_FIND_INT(sl_i_sym_table, &sym_id, s);
   pthread_rwlock_unlock(&sl_i_sym_table_lock);
   if(s != NULL) {
-    printf("sym table hit\n");
+    DEBUG("sym table hit");
     return s;
   }
-  printf("sym table miss\n");
+  DEBUG("sym table miss");
   s = malloc(sizeof(sl_d_sym_t));
   assert(s != NULL);
   s->type = SL_DATA_SYM;

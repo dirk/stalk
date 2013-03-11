@@ -2,6 +2,8 @@
 #import <stdio.h>
 #import <assert.h>
 
+#include "debug.h"
+
 #include "stalk.h"
 #include "data.h"
 #include "syntax.h"
@@ -43,14 +45,14 @@ static inline void* sl_s_sym_eval(sl_s_sym_t* s, void* scope) {
     s->hint = sym;
     
     sl_d_sym_t* _sym = (sl_d_sym_t*)s->hint;
-    printf("new sym(id=%u, sym_id=%u, value=%s)\n",
+    DEBUG("new sym(id=%u, sym_id=%u, value=%s)",
       _sym->id,
       _sym->sym_id,
       _sym->value
     );
     return sym;
   } else {
-    printf("hinted sym(id=%u)\n", ((sl_d_sym_t*)s)->id);
+    DEBUG("hinted sym(id=%u)", ((sl_d_sym_t*)s)->id);
     return (sl_d_sym_t*)s->hint;
   }
   
@@ -66,8 +68,10 @@ void* sl_s_eval(void* _s, void* scope) {
   case SL_SYNTAX_SYM:
     return sl_s_sym_eval((sl_s_sym_t*)s, scope);
   default:
-    break;
+    SENTINEL("Unknown expression type: %d", (int)type);
   }
+  return NULL;
+error:
   return NULL;
 }
 
