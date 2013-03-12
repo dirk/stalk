@@ -13,9 +13,7 @@
 
 #include "deps/uthash/src/utarray.h"
 
-sl_sym_id sl_i_str_to_sym_id(char *str) {
-  // TODO: Add len parameter to reduce strlen() calls.
-  int len = strlen(str);
+sl_sym_id sl_i_str_to_sym_id(char *str, int len) {
   return sl_i_fnv1a(str, len);
 }
 
@@ -28,7 +26,7 @@ inline unsigned int sl_i_fnv1a(char *str, int len) {
 }
 
 char* sl_i_sym_value_to_cstring(sl_d_sym_t* s) {
-  LOG_WARN("Dangerous: make sure to free the return pointer");
+  LOG_WARN("Dangerous! Make sure to free the return pointer.");
   char* buffer = malloc(sizeof(char) * (s->length + 1));
   sprintf(buffer, "%*s", s->length, s->value);
   return buffer;
@@ -36,7 +34,7 @@ char* sl_i_sym_value_to_cstring(sl_d_sym_t* s) {
 
 bool sl_i_sym_eq(sl_d_sym_t* a, sl_d_sym_t* b) {
   return (a->id == b->id) ? true : false;
-  // Lololol we don't need the below since syms all have uniq ids
+  // Lololol we don't need the below since syms all have unique ids.
   /*
   if(a->length != b->length) { return false; }
   unsigned char l = a->length;
