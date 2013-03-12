@@ -34,7 +34,10 @@ char* sl_i_sym_value_to_cstring(sl_d_sym_t* s) {
   return buffer;
 }
 
-bool sl_i_sym_cmp(sl_d_sym_t* a, sl_d_sym_t* b) {
+bool sl_i_sym_eq(sl_d_sym_t* a, sl_d_sym_t* b) {
+  return (a->id == b->id) ? true : false;
+  // Lololol we don't need the below since syms all have uniq ids
+  /*
   if(a->length != b->length) { return false; }
   unsigned char l = a->length;
   for(unsigned char i = 0; i < l; i++) {
@@ -43,4 +46,5 @@ bool sl_i_sym_cmp(sl_d_sym_t* a, sl_d_sym_t* b) {
     }
   }
   return true;
+  */
 }
