@@ -8,7 +8,7 @@
 #include "data.h"
 #include "syntax.h"
 
-sl_s_expr_t* sl_s_expr_init() {
+sl_s_expr_t* sl_s_expr_new() {
   sl_s_expr_t* s = malloc(sizeof(sl_s_expr_t));
   assert(s != NULL);
   s->type = SL_SYNTAX_EXPR;
@@ -18,7 +18,7 @@ sl_s_expr_t* sl_s_expr_init() {
   s->tail = NULL;
   return s;
 }
-sl_s_sym_t* sl_s_sym_init() {
+sl_s_sym_t* sl_s_sym_new() {
   sl_s_sym_t* s = malloc(sizeof(sl_s_expr_t));
   assert(s != NULL);
   s->type = SL_SYNTAX_SYM;
@@ -36,7 +36,6 @@ void sl_s_sym_free(sl_s_sym_t* s) {
 }
 
 static inline void* sl_s_expr_eval(sl_s_expr_t* s, void* scope) {
-  printf("there\n");
   return NULL;
 }
 static inline void* sl_s_sym_eval(sl_s_sym_t* s, void* scope) {
@@ -45,11 +44,15 @@ static inline void* sl_s_sym_eval(sl_s_sym_t* s, void* scope) {
     s->hint = sym;
     
     sl_d_sym_t* _sym = (sl_d_sym_t*)s->hint;
-    DEBUG("new sym(id=%u, sym_id=%u, value=%s)",
+    DEBUG("new sym(id=%u, sym_id=%u, value=%*s)",
       _sym->id,
       _sym->sym_id,
+      _sym->length,
       _sym->value
     );
+    // char* buff = sl_i_sym_value_to_cstring(_sym);
+    // printf("buff = %s\n", buff);
+    // free(buff);
     return sym;
   } else {
     DEBUG("hinted sym(id=%u)", ((sl_d_sym_t*)s)->id);
@@ -73,23 +76,4 @@ void* sl_s_eval(void* _s, void* scope) {
   return NULL;
 error:
   return NULL;
-}
-
-void test() {
-  sl_s_expr_t* s = sl_s_expr_init();
-  sl_s_sym_t* sym = sl_s_sym_init();
-  sym->value = "test";
-  
-  void* scope = malloc(sizeof(NULL));
-  
-  // sl_s_eval(s, scope);
-  sl_s_eval(sym, scope);
-  sl_s_eval(sym, scope);
-  sym->hint = NULL;
-  sl_s_eval(sym, scope);
-  
-  free(scope);
-  
-  sl_s_sym_free(sym);
-  sl_s_expr_free(s);
 }

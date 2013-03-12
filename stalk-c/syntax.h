@@ -35,7 +35,10 @@ typedef struct sl_s_sym {
   void* hint;//sl_d_sym_t
 } sl_s_sym_t;
 
-sl_s_expr_t* sl_s_expr_init();
-void test();
+sl_s_expr_t* sl_s_expr_new();
+sl_s_sym_t* sl_s_sym_new();
+void sl_s_expr_free(sl_s_expr_t* s);
+void sl_s_sym_free(sl_s_sym_t* s);
+void* sl_s_eval(void* _s, void* scope);
 
 #endif
