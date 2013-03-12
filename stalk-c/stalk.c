@@ -31,7 +31,8 @@ void bootstrap(sl_d_scope_t* scope) {
 void test() {
   sl_s_expr_t* s = sl_s_expr_new();
   sl_s_sym_t* sym = sl_s_sym_new();
-  sym->value = "test";
+  sym->value = malloc(sizeof(char) * 5);
+  strcpy(sym->value, "test");
   sl_d_scope_t* root = sl_d_scope_new();
   bootstrap(root);
   sl_d_sym_t* test_sym = sl_d_sym_new("test");

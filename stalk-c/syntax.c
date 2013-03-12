@@ -8,22 +8,28 @@
 #include "syntax.h"
 #include "data.h"
 
+void* sl_s_base_gen_new(sl_syntax_type type, size_t size) {
+  sl_s_base_t* b = malloc(size);
+  assert(b != NULL);
+  b->type = type;
+  b->next = NULL;
+  b->prev = NULL;
+  return b;
+}
+
+sl_s_base_t* sl_s_base_new() {
+  return sl_s_base_gen_new(SL_SYNTAX_BASE, sizeof(sl_s_base_t));
+}
+
 sl_s_expr_t* sl_s_expr_new() {
-  sl_s_expr_t* s = malloc(sizeof(sl_s_expr_t));
-  assert(s != NULL);
-  s->type = SL_SYNTAX_EXPR;
-  s->next = NULL;
-  s->prev = NULL;
+  sl_s_expr_t* s = sl_s_base_gen_new(SL_SYNTAX_EXPR, sizeof(sl_s_expr_t));
   s->head = NULL;
   return s;
 }
 sl_s_sym_t* sl_s_sym_new() {
-  sl_s_sym_t* s = malloc(sizeof(sl_s_sym_t));
-  assert(s != NULL);
-  s->type = SL_SYNTAX_SYM;
-  s->next = NULL;
-  s->prev = NULL;
+  sl_s_sym_t* s = sl_s_base_gen_new(SL_SYNTAX_SYM, sizeof(sl_s_sym_t));
   s->value = NULL;//cstring
+  s->literal = false;
   s->hint = NULL;
   return s;
 }
@@ -31,6 +37,7 @@ void sl_s_expr_free(sl_s_expr_t* s) {
   free(s);
 }
 void sl_s_sym_free(sl_s_sym_t* s) {
+  free(s->value);
   free(s);
 }
 
@@ -69,7 +76,14 @@ static inline void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope) {
 }
 static inline void* sl_s_sym_hint(sl_s_sym_t* s) {
   if(s->hint == NULL) {
-    sl_d_sym_t *sym = sl_d_sym_new(s->value);//cstring
+    char *value = s->value;
+    if(value[0] == ':') {
+      value = &s->value[1];
+      s->literal = true;
+    } else {
+      s->literal = false;
+    }
+    sl_d_sym_t *sym = sl_d_sym_new(value);//cstring
     s->hint = sym;
     
     sl_d_sym_t* _sym = (sl_d_sym_t*)s->hint;

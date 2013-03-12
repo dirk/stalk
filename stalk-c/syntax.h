@@ -12,10 +12,12 @@ typedef unsigned char sl_syntax_type;
 #define SL_SYNTAX_FLOAT   4
 #define SL_SYNTAX_BLOCK   5
 #define SL_SYNTAX_COMMENT 6
+#define SL_SYNTAX_BASE    7
 
 #define SL_SYNTAX_TYPE sl_syntax_type type;
+#define SL_SYNTAX_LINENO int lineno;
 #define SL_SYNTAX_LINKS void *next; void *prev;
-#define SL_SYNTAX_HEADER SL_SYNTAX_TYPE SL_SYNTAX_LINKS
+#define SL_SYNTAX_HEADER SL_SYNTAX_TYPE SL_SYNTAX_LINENO SL_SYNTAX_LINKS
 
 typedef struct sl_s_base {
   SL_SYNTAX_HEADER;
@@ -34,9 +36,13 @@ typedef struct sl_s_list {
 
 typedef struct sl_s_sym {
   SL_SYNTAX_HEADER;
-  char *value;
+  char *value;//cstring
+  bool literal;
   void* hint;//sl_d_sym_t
 } sl_s_sym_t;
+
+void* sl_s_base_gen_new(sl_syntax_type type, size_t size);
+sl_s_base_t* sl_s_base_new();
 
 sl_s_expr_t* sl_s_expr_new();
 sl_s_sym_t* sl_s_sym_new();

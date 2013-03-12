@@ -4,4 +4,6 @@
 typedef int bool;
 enum { false, true };
 
+int main(int argc, char *argv[]);
+
 #endif

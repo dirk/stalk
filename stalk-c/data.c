@@ -28,7 +28,7 @@ sl_obj_id sl_obj_next_id() {
 
 // Generic object creation with given type and size.
 // Sets type, id, parent, refcount, methods, and values attributes.
-void* sl_d_gen_obj_new(void* _o, sl_data_type type, size_t size) {
+void* sl_d_gen_obj_new(sl_data_type type, size_t size) {
   sl_d_obj_t* o = malloc(size);
   assert(o != NULL);
   o->type = type;
@@ -42,7 +42,7 @@ void* sl_d_gen_obj_new(void* _o, sl_data_type type, size_t size) {
 
 sl_d_obj_t* sl_d_obj_new() {
   sl_d_obj_t* obj;
-  obj = sl_d_gen_obj_new(obj, SL_DATA_OBJ, sizeof(sl_d_obj_t));
+  obj = sl_d_gen_obj_new(SL_DATA_OBJ, sizeof(sl_d_obj_t));
   return obj;
 }
 
@@ -106,7 +106,7 @@ bool sl_d_obj_free(sl_d_obj_t* obj) {
 
 sl_d_method_t* sl_d_method_new() {
   sl_d_method_t* m;
-  m = sl_d_gen_obj_new(m, SL_DATA_METHOD, sizeof(sl_d_method_t));
+  m = sl_d_gen_obj_new(SL_DATA_METHOD, sizeof(sl_d_method_t));
   m->signature = NULL;
   m->closure = NULL;
   m->block = NULL;
@@ -118,7 +118,7 @@ sl_d_method_t* sl_d_method_new() {
 
 sl_d_scope_t* sl_d_scope_new() {
   sl_d_scope_t* s;
-  s = sl_d_gen_obj_new(s, SL_DATA_SCOPE, sizeof(sl_d_scope_t));
+  s = sl_d_gen_obj_new(SL_DATA_SCOPE, sizeof(sl_d_scope_t));
   return s;
 }
 void sl_d_scope_free(sl_d_scope_t* s) {
@@ -184,7 +184,7 @@ UT_icd sl_i_array_icd = {sizeof(sl_d_obj_t*), NULL, NULL, NULL};
 
 sl_d_array_t* sl_d_array_new() {
   sl_d_array_t* arr;
-  arr = sl_d_gen_obj_new(arr, SL_DATA_ARRAY, sizeof(sl_d_array_t));
+  arr = sl_d_gen_obj_new(SL_DATA_ARRAY, sizeof(sl_d_array_t));
   utarray_new(arr->objs, &sl_i_array_icd);
   return arr;
 }
@@ -207,7 +207,7 @@ sl_d_sym_t* sl_d_sym_new(char* name) {
   }
   DEBUG("sym table miss");
   
-  s = (sl_d_sym_t*)sl_d_gen_obj_new(s, SL_DATA_SYM, sizeof(sl_d_sym_t));
+  s = (sl_d_sym_t*)sl_d_gen_obj_new(SL_DATA_SYM, sizeof(sl_d_sym_t));
   // value and length
   s->length = len;
   s->value = malloc(sizeof(char) * len);
