@@ -56,11 +56,15 @@ static inline void sl_d_obj_force_free(sl_d_obj_t* obj) {
   case SL_DATA_SYM:
     sl_d_sym_free((sl_d_sym_t*)obj);
     break;
+  case SL_DATA_INT:
+    sl_d_int_free((sl_d_int_t*)obj);
+    break;
+  case SL_DATA_OBJ:
+    free(obj);
+    break;
   default:
     LOG_ERR("Unexpected data type: %d", obj->id);
   }
-  
-  free(obj);
 }
 
 bool sl_d_obj_free(sl_d_obj_t* obj) {
@@ -190,6 +194,7 @@ sl_d_array_t* sl_d_array_new() {
 }
 void sl_d_array_free(sl_d_array_t* arr) {
   utarray_free(arr->objs);
+  free(arr);
 }
 
 // SYMBOL ---------------------------------------------------------------------
@@ -239,5 +244,17 @@ void sl_d_sym_free(sl_d_sym_t* sym) {
   HASH_DEL(sl_i_sym_table, sym);
   pthread_rwlock_unlock(&sl_i_sym_table_lock);
   free(sym->value);
+  free(sym);
+}
+
+// INTEGER --------------------------------------------------------------------
+
+sl_d_int_t* sl_d_int_new() {
+  sl_d_int_t* i;
+  i = sl_d_gen_obj_new(SL_DATA_ARRAY, sizeof(sl_d_int_t));
+  return i;
+}
+void sl_d_int_free(sl_d_int_t* i) {
+  free(i);
 }
 

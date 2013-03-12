@@ -17,6 +17,7 @@ typedef unsigned char sl_data_type;
 #define SL_DATA_SCOPE  (sl_data_type)2
 #define SL_DATA_ARRAY  (sl_data_type)3
 #define SL_DATA_METHOD (sl_data_type)4
+#define SL_DATA_INT    (sl_data_type)5
 
 #define SL_DATA_TYPE    sl_data_type type;
 #define SL_OBJ_ID       sl_obj_id id;
@@ -44,6 +45,11 @@ typedef struct sl_i_sym_item {
 typedef struct sl_d_obj {
   SL_OBJ_HEADER;
 } sl_d_obj_t;
+
+typedef struct sl_d_int {
+  SL_OBJ_HEADER;
+  int value;
+} sl_d_int_t;
 
 typedef struct sl_d_sym {
   SL_OBJ_HEADER;
@@ -122,6 +128,9 @@ void sl_d_scope_free(sl_d_scope_t* s);
 
 sl_d_array_t* sl_d_array_new();
 void sl_d_array_free(sl_d_array_t* arr);
+
+sl_d_int_t* sl_d_int_new();
+void sl_d_int_free(sl_d_int_t* arr);
 
 
 #endif
