@@ -2,8 +2,13 @@ CC=gcc
 CFLAGS=-g -Wall -c -std=c99 -DHASH_FUNCTION=HASH_FNV
 LDFLAGS=
 
+LEX=flex
+LFLAGS=
+
+PARSE=bison
+
 # SOURCES=types.c system.c stalk.c
-SOURCES=symbol.c syntax.c data.c stalk.c
+SOURCES=symbol.c syntax.c data.c stalk.yy.c parse.tab.c stalk.c
 EXECUTABLE=stalk
 EXDIR=bin
 OBJECTS=$(SOURCES:.c=.o)
@@ -19,6 +24,17 @@ $(EXECUTABLE): $(OBJECTS)
 
 .c.o:
 	$(CC) $(CFLAGS) $< -o $@
+
+# Override default lex and yacc rule
+%.c: %.y
+%.c: %.l
+
+parse.tab.c: parse.y
+	$(PARSE) -d -o $@ $^
+
+stalk.yy.c: stalk.l
+	$(LEX) $(LFLAGS) -o $@ $^
+
 
 
 clean:

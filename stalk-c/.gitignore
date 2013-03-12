@@ -1,3 +1,6 @@
 *.o
 stalk
 bin/stalk
+
+parse.tab.*
+stalk.yy.*
