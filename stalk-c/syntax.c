@@ -5,8 +5,8 @@
 #include "debug.h"
 
 #include "stalk.h"
-#include "data.h"
 #include "syntax.h"
+#include "data.h"
 
 sl_s_expr_t* sl_s_expr_new() {
   sl_s_expr_t* s = malloc(sizeof(sl_s_expr_t));
@@ -15,16 +15,15 @@ sl_s_expr_t* sl_s_expr_new() {
   s->next = NULL;
   s->prev = NULL;
   s->head = NULL;
-  s->tail = NULL;
   return s;
 }
 sl_s_sym_t* sl_s_sym_new() {
-  sl_s_sym_t* s = malloc(sizeof(sl_s_expr_t));
+  sl_s_sym_t* s = malloc(sizeof(sl_s_sym_t));
   assert(s != NULL);
   s->type = SL_SYNTAX_SYM;
   s->next = NULL;
   s->prev = NULL;
-  s->value = NULL;
+  s->value = NULL;//cstring
   s->hint = NULL;
   return s;
 }
@@ -40,13 +39,14 @@ static inline void* sl_s_expr_eval(sl_s_expr_t* s, void* scope) {
 }
 static inline void* sl_s_sym_eval(sl_s_sym_t* s, void* scope) {
   if(s->hint == NULL) {
-    sl_d_sym_t *sym = sl_d_sym_new(s->value);
+    sl_d_sym_t *sym = sl_d_sym_new(s->value);//cstring
     s->hint = sym;
     
     sl_d_sym_t* _sym = (sl_d_sym_t*)s->hint;
-    DEBUG("new sym(id=%u, sym_id=%u, value=%*s)",
+    DEBUG("new sym(id=%u, sym_id=%u, value(%d)=%*s)",
       _sym->id,
       _sym->sym_id,
+      _sym->length,
       _sym->length,
       _sym->value
     );
@@ -55,7 +55,7 @@ static inline void* sl_s_sym_eval(sl_s_sym_t* s, void* scope) {
     // free(buff);
     return sym;
   } else {
-    DEBUG("hinted sym(id=%u)", ((sl_d_sym_t*)s)->id);
+    DEBUG("hinted sym(id=%u)", ((sl_d_sym_t*)s->hint)->id);
     return (sl_d_sym_t*)s->hint;
   }
   

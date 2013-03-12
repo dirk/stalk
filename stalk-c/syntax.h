@@ -15,22 +15,25 @@ typedef unsigned char sl_syntax_type;
 
 #define SL_SYNTAX_TYPE sl_syntax_type type;
 #define SL_SYNTAX_LINKS void *next; void *prev;
+#define SL_SYNTAX_HEADER SL_SYNTAX_TYPE SL_SYNTAX_LINKS
 
 typedef struct sl_s_base {
-  SL_SYNTAX_TYPE
-  SL_SYNTAX_LINKS
+  SL_SYNTAX_HEADER;
 } sl_s_base_t;
 
 typedef struct sl_s_expr {
-  SL_SYNTAX_TYPE
-  SL_SYNTAX_LINKS
-  void *head;// Start of inner expression
-  void *tail;// End of inner expression
+  SL_SYNTAX_HEADER;
+  sl_s_base_t *head;// Start of inner expression
+  // sl_s_base_t *tail;// End of inner expression
 } sl_s_expr_t;
 
+typedef struct sl_s_list {
+  SL_SYNTAX_HEADER;
+  sl_s_base_t *head;// Start of inner list of sl_s_sym_t's
+} sl_s_list_t;
+
 typedef struct sl_s_sym {
-  SL_SYNTAX_TYPE
-  SL_SYNTAX_LINKS
+  SL_SYNTAX_HEADER;
   char *value;
   void* hint;//sl_d_sym_t
 } sl_s_sym_t;

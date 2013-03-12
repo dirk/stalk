@@ -16,15 +16,18 @@ void test() {
   sl_s_sym_t* sym = sl_s_sym_new();
   sym->value = "test";
   
-  void* scope = malloc(sizeof(NULL));
+  sl_d_scope_t* scope = sl_d_scope_new();
   
-  // sl_s_eval(s, scope);
+  
   sl_s_eval(sym, scope);
   sl_s_eval(sym, scope);
   sym->hint = NULL;
   sl_s_eval(sym, scope);
   
-  free(scope);
+  
+  //DL_PREPEND(s->head, (sl_s_base_t*)sym);
+  
+  sl_d_scope_free(scope);
   
   sl_s_sym_free(sym);
   sl_s_expr_free(s);

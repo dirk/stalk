@@ -1,7 +1,9 @@
 #ifndef DATA_H
 #define DATA_H
 
-#import "deps/uthash/src/uthash.h"
+#include "deps/uthash/src/uthash.h"
+
+// VALUES ---------------------------------------------------------------------
 
 // FNV hash of symbol string
 typedef unsigned int sl_sym_id;
@@ -18,7 +20,7 @@ typedef unsigned char sl_data_type;
 #define SL_OBJ_PARENT  void* parent;
 #define SL_OBJ_METHODS sl_i_sym_item_t* values;
 #define SL_OBJ_VALUES  sl_i_sym_item_t* methods;
-#define SL_OBJ_DEFN    SL_DATA_TYPE \
+#define SL_OBJ_HEADER  SL_DATA_TYPE \
                        SL_OBJ_ID \
                        SL_OBJ_PARENT \
                        SL_OBJ_METHODS \
@@ -35,34 +37,57 @@ typedef struct sl_i_sym_item {
 } sl_i_sym_item_t;
 
 typedef struct sl_d_obj {
-  SL_OBJ_DEFN;
+  SL_OBJ_HEADER;
 } sl_d_obj_t;
 
 typedef struct sl_d_sym {
-  SL_OBJ_DEFN;
+  SL_OBJ_HEADER;
   sl_sym_id sym_id;
   char *value;//non-null-terminated string of length .length
   unsigned char length;//length of value
   UT_hash_handle hh;
 } sl_d_sym_t;
 
+typedef struct sl_d_block {
+  SL_OBJ_HEADER;
+  sl_s_expr_t* expr;
+  sl_s_list_t* params;
+} sl_d_block_t;
 
-
-typedef struct sl_i_scope_item {
+/*typedef struct sl_i_scope_item {
   sl_scope_item_id id;// Computed using sl_d_scope_hash_name(name)
   char *name;
   UT_hash_handle hh;
-} sl_i_scope_item_t;
+} sl_i_scope_item_t;*/
 
 typedef struct sl_d_scope {
-  SL_DATA_TYPE
-  SL_OBJ_ID
-  sl_d_obj_t *parent;
+  SL_OBJ_HEADER;
+  // Locals of a scope are defined in .values and .methods.
+  // .parent: Parent scope
+  // 
   // sl_i_scope_item_t *locals;
-  sl_i_sym_item_t* locals;
-} sl_scope_t;
+  // sl_i_sym_item_t* locals;
+} sl_d_scope_t;
+
+typedef struct sl_d_method {
+  SL_OBJ_HEADER;
+  sl_d_sym_t* signature;
+  sl_d_scope_t* closure;
+  sl_d_block_t* block;
+} sl_d_method_t;
+
+
+
+
+// FUNCTIONS ------------------------------------------------------------------
 
 sl_d_sym_t* sl_d_sym_new(char* name);
-char* sl_i_sym_value_to_cstring(sl_d_sym_t* s);
+void sl_d_sym_free(sl_d_sym_t* sym);
+
+sl_d_obj_t* sl_d_obj_new();
+
+sl_d_scope_t* sl_d_scope_new();
+void sl_d_scope_free(sl_d_scope_t* s);
+
 
 #endif

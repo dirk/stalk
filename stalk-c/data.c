@@ -5,9 +5,10 @@
 
 #include "debug.h"
 
-#import "stalk.h"
-#import "data.h"
-#import "symbol.h"
+#include "stalk.h"
+#include "syntax.h"
+#include "data.h"
+#include "symbol.h"
 
 static sl_obj_id sl_i_obj_id_counter = 0;
 static pthread_mutex_t sl_i_obj_id_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -38,11 +39,30 @@ void* sl_d_gen_obj_new(void* _o, sl_data_type type, size_t size) {
   return o;
 }
 
+sl_d_obj_t* sl_d_obj_new() {
+  sl_d_obj_t* obj;
+  obj = sl_d_gen_obj_new(obj, SL_DATA_OBJ, sizeof(sl_d_obj_t));
+  return obj;
+}
+
+sl_d_scope_t* sl_d_scope_new() {
+  sl_d_scope_t* s;
+  s = (sl_d_scope_t*)sl_d_gen_obj_new(s, SL_DATA_SCOPE, sizeof(sl_d_scope_t));
+  return s;
+}
+void sl_d_scope_free(sl_d_scope_t* s) {
+  free(s);
+}
+
+void sl_d_scope_set_local(sl_d_sym_t* name, sl_d_obj_t* obj) {
+  
+}
+
 sl_d_sym_t* sl_d_sym_new(char* name) {
   sl_d_sym_t* s;
   sl_sym_id sym_id = sl_i_str_to_sym_id(name);
   assert(pthread_rwlock_rdlock(&sl_i_sym_table_lock) == 0);
-  HASH_FIND_INT(sl_i_sym_table, &sym_id, s);
+    HASH_FIND_INT(sl_i_sym_table, &sym_id, s);
   pthread_rwlock_unlock(&sl_i_sym_table_lock);
   if(s != NULL) {
     DEBUG("sym table hit");
@@ -60,14 +80,29 @@ sl_d_sym_t* sl_d_sym_new(char* name) {
   s->sym_id = sym_id;
   // hh
   assert(pthread_rwlock_wrlock(&sl_i_sym_table_lock) == 0);
-  HASH_ADD_INT(sl_i_sym_table, sym_id, s);
-  pthread_rwlock_unlock(&sl_i_sym_table_lock);
-  
+    sl_d_sym_t* s_check;
+    HASH_FIND_INT(sl_i_sym_table, &sym_id, s_check);
+    if(s_check != NULL) {
+      // sl_d_sym_free without thread safety, since we already have write-lock.
+      free(s->value);
+      free(s);
+      pthread_rwlock_unlock(&sl_i_sym_table_lock);
+      return s_check;
+    } else {
+      HASH_ADD_INT(sl_i_sym_table, sym_id, s);
+      pthread_rwlock_unlock(&sl_i_sym_table_lock);
+      return s;
+    }
+  //pthread
+  LOG_ERR("Should never reach here");
   return s;
 }
-char* sl_i_sym_value_to_cstring(sl_d_sym_t* s) {
-  LOG_WARN("Dangerous function");
-  char* buffer = malloc(sizeof(char) * (s->length + 1));
-  sprintf(buffer, "%*s", s->length, s->value);
-  return buffer;
+void sl_d_sym_free(sl_d_sym_t* sym) {
+  // LOG_WARN("This function should not normally be called!");
+  assert(pthread_rwlock_wrlock(&sl_i_sym_table_lock) == 0);
+  HASH_DEL(sl_i_sym_table, sym);
+  pthread_rwlock_unlock(&sl_i_sym_table_lock);
+  free(sym->value);
+  free(sym);
 }
+

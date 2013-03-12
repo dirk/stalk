@@ -7,5 +7,7 @@
 
 sl_sym_id sl_i_str_to_sym_id(char *str);
 unsigned int sl_i_fnv1a(char *str, int len);
+char* sl_i_sym_value_to_cstring(sl_d_sym_t* s);
+bool sl_i_sym_cmp(sl_d_sym_t* a, sl_d_sym_t* b);
 
 #endif
