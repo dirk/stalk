@@ -5,13 +5,14 @@
 #include "parse.tab.h"
 #include "syntax.h"
 
-#define SAVE_STRING yylval->sl_p_string = strdup(yytext);
+#define SAVE_STRING yylval->p_string = strdup(yytext);
 #define LINE_COUNT  int i = 0; while(yytext[i] != '\0') { yylineno++; i += 1; }
 
 int yylineno_extern = 1;
 #define YY_USER_ACTION yylineno_extern = yylineno;
 %}
 
+%option header-file="stalk.yy.h"
 %option nounput
 %option yylineno
 %option reentrant noyywrap
@@ -24,11 +25,11 @@ comment     [ \t]*#[^\n]*
 
 %%
 {integer}{fractional} {
-  yylval->sl_p_float = atof(yytext);
+  yylval->p_float = atof(yytext);
   return SL_P_DECIMAL;
 }
 {integer} {
-  yylval->sl_p_int = atoi(yytext);
+  yylval->p_int = atoi(yytext);
   return SL_P_INTEGER;
 }
 
@@ -36,17 +37,16 @@ comment     [ \t]*#[^\n]*
 {id}          { SAVE_STRING; return SL_P_IDENT; }
 ":"{id}       { SAVE_STRING; return SL_P_SYMBOL; }
 {comment}     { }
-"\\([ \t\n]*" { LINE_COUNT; return SL_P_LPAREN; }
-"[ \t\n]*\\)" { LINE_COUNT; return SL_P_RPAREN; }
-"\\{[ \t\n]*" { LINE_COUNT; return SL_P_RBRACK; }
-"[ \t\n]*\\}" { LINE_COUNT; return SL_P_LBRACK; }
-"\\[[ \t\n]*" { LINE_COUNT; return SL_P_LSQ; }
-"[ \t\n]*\\]" { LINE_COUNT; return SL_P_RSQ; }
-"[ \t]+\\\\"{comment}?"\n[ \t]*" { LINE_COUNT; return SL_P_CONT; }
-"[ \t]+"      { return SL_P_SWS; }
-",[ \t\n]*"   { LINE_COUNT; return SL_P_COMMA; }
-"[ \t]*\n[ \t\n]*" { LINE_COUNT; return SL_P_TERMINAL; }
-"\\\"[^\\\"]*\\\"" { LINE_COUNT; SAVE_STRING; return SL_P_STRING; }
+"\\("[ \t\n]* { LINE_COUNT; return SL_P_LPAREN; }
+[ \t\n]*"\\)" { LINE_COUNT; return SL_P_RPAREN; }
+"{"[ \t\n]*   { LINE_COUNT; return SL_P_RBRACK; }
+[ \t\n]*"}"   { LINE_COUNT; return SL_P_LBRACK; }
+"["[ \t\n]*   { LINE_COUNT; return SL_P_LSQ; }
+[ \t\n]*"]"   { LINE_COUNT; return SL_P_RSQ; }
+[ \t]+        { return SL_P_SWS; }
 "="           { SAVE_STRING; return SL_P_ASSIGN; }
-"[+\\-*/\\^]" { SAVE_STRING; return SL_P_OPERATOR; }
-
+[+\-*/\^]     { SAVE_STRING; return SL_P_OPERATOR; }
+","[ \t\n]*   { /* comma */ LINE_COUNT; return SL_P_COMMA; }
+[ \t]*"\n"[ \t\n]*   { LINE_COUNT; return SL_P_TERMINAL; }
+"\\\""[^\\\"]*"\\\"" { LINE_COUNT; SAVE_STRING; return SL_P_STRING; }
+[ \t]+"\\"{comment}?"\n"[ \t]* { LINE_COUNT; return SL_P_CONT; }

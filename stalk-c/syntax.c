@@ -21,11 +21,46 @@ sl_s_base_t* sl_s_base_new() {
   return sl_s_base_gen_new(SL_SYNTAX_BASE, sizeof(sl_s_base_t));
 }
 
+sl_s_int_t* sl_s_int_new() {
+  sl_s_int_t* s = sl_s_base_gen_new(SL_SYNTAX_INT, sizeof(sl_s_int_t));
+  s->value = 0;
+  s->hint = NULL;
+  return s;
+}
+
+sl_s_float_t* sl_s_float_new() {
+  sl_s_float_t* s = sl_s_base_gen_new(SL_SYNTAX_FLOAT, sizeof(sl_s_float_t));
+  s->value = 0;
+  s->hint = NULL;
+  return s;
+}
+
+sl_s_string_t* sl_s_string_new() {
+  sl_s_string_t* s = sl_s_base_gen_new(SL_SYNTAX_STRING, sizeof(sl_s_string_t));
+  s->value = NULL;//cstring
+  s->hint = NULL;
+  return s;
+}
+
 sl_s_expr_t* sl_s_expr_new() {
   sl_s_expr_t* s = sl_s_base_gen_new(SL_SYNTAX_EXPR, sizeof(sl_s_expr_t));
   s->head = NULL;
   return s;
 }
+void sl_s_expr_unshift(sl_s_expr_t* expr, sl_s_base_t* s) {
+  DL_PREPEND(expr->head, s);
+}
+sl_s_message_t* sl_s_message_new() {
+  sl_s_message_t* s = sl_s_base_gen_new(
+    SL_SYNTAX_MESSAGE, sizeof(sl_s_message_t)
+  );
+  s->head = NULL;
+  return s;
+}
+void sl_s_message_unshift(sl_s_message_t* message, sl_s_base_t* s) {
+  DL_PREPEND(message->head, s);
+}
+
 sl_s_sym_t* sl_s_sym_new() {
   sl_s_sym_t* s = sl_s_base_gen_new(SL_SYNTAX_SYM, sizeof(sl_s_sym_t));
   s->value = NULL;//cstring

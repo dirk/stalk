@@ -9,6 +9,11 @@
 #include "data.h"
 #include "symbol.h"
 
+#include "parse.h"
+#include "parse.tab.h"
+#include "stalk.yy.h"
+
+
 // void test(char *s) {
 //   // printf("\"%s\" = %d\n", s, sl_str_to_sym_int(s));
 // }
@@ -43,7 +48,7 @@ void test() {
   // sl_s_eval(sym, scope);
   
   
-  DL_PREPEND(s->head, (sl_s_base_t*)sym);
+  sl_s_expr_unshift(s, (sl_s_base_t*)sym);
   sl_s_eval(s, root);
   
   sl_d_obj_free((sl_d_obj_t*)test_sym);
@@ -52,7 +57,8 @@ void test() {
   sl_s_expr_free(s);
 }
 
-
+extern int yyparse();
+extern int yydebug;
 
 int main(int argc, char *argv[]) {
   //test("a");
@@ -64,7 +70,23 @@ int main(int argc, char *argv[]) {
   //test("");
   //test(":");
   
-  test();
+  //test();
+  sl_s_expr_t* head;
+  
+  yydebug = 1;
+  
+  const char* str = ":test\n\n\0\0";
+  
+  yyscan_t scanner;
+  YY_BUFFER_STATE buffer;
+  yylex_init(&scanner);
+  buffer = yy_scan_string(str, scanner);
+  yyparse(&head, scanner);
+  yy_delete_buffer(buffer, scanner);
+  yylex_destroy(scanner);
+  return 0;
+  
+  
   
   return 0;
 }
