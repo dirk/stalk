@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
   // const char* str = "\n2 println\na = [1,\n#test\n2]";
   // const char* str = "\n2 println\n";
   // const char* str = "\ndef: bar { baz }\n";
-  const char* str = "(((\"test\")) type) println";
+  const char* str = "def: a { return: \"test\" }\na println";
   char *src = malloc(strlen(str) + 2);
   strcpy(src, str);
   strcat(src, "\n");
