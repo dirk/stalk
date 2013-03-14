@@ -23,9 +23,9 @@ SL_I_METHOD_F(bootstrap_test) { //args: self, params
   DEBUG("testing!");
   return NULL;
 }
-
+/*
 void bootstrap(sl_d_scope_t* scope) {
-  /*
+  
   sl_d_sym_t* test_sym = sl_d_sym_new("test");
   sl_d_method_t* test_method = sl_d_method_new();
   
@@ -33,7 +33,7 @@ void bootstrap(sl_d_scope_t* scope) {
   test_method->signature = test_sym;
   
   sl_d_obj_set_method((sl_d_obj_t*)scope, test_sym, (sl_d_obj_t*)test_method);
-  */
+  
 }
 
 void test() {
@@ -59,6 +59,7 @@ void test() {
   sl_s_sym_free(sym);
   sl_s_expr_free(s);
 }
+*/
 
 extern int yyparse();
 extern int yydebug;
@@ -77,7 +78,8 @@ int main(int argc, char *argv[]) {
   // const char* str = "2 2\ndef: a: b { c }\na = (d + d)\n#test\n#test";
   // const char* str = "\n2 println\na = [1,\n#test\n2]";
   // const char* str = "\n2 println\n";
-  const char* str = "\ndef: bar { baz }\n";
+  // const char* str = "\ndef: bar { baz }\n";
+  const char* str = "(((\"test\")) type) println";
   char *src = malloc(strlen(str) + 2);
   strcpy(src, str);
   strcat(src, "\n");
@@ -92,7 +94,6 @@ int main(int argc, char *argv[]) {
   yylex_destroy(scanner);
   
   sl_d_scope_t* root = sl_d_scope_new();
-  bootstrap(root);
   
   sl_s_eval(head, root);
   

@@ -20,13 +20,19 @@ static pthread_rwlock_t sl_i_sym_table_lock = PTHREAD_RWLOCK_INITIALIZER;
 // #define aliases SL_D_NULL and D_NULL to sl_d_null.
 // Throw in "extern sl_d_null_t* sl_d_null;" into any source files that need
 // this.
+// 
+// Global immutable null object
 sl_d_obj_t* sl_d_null = NULL;
+// Global immutable root object
+sl_d_obj_t* sl_i_root_object = NULL;
+sl_d_obj_t* sl_i_root_string = NULL;
 
 // OBJECTS --------------------------------------------------------------------
 
 sl_d_obj_t* sl_d_obj_new() {
   sl_d_obj_t* obj;
   obj = sl_d_gen_obj_new(SL_DATA_OBJ, sizeof(sl_d_obj_t));
+  obj->parent = sl_i_root_object;
   return obj;
 }
 
@@ -37,7 +43,7 @@ void* sl_d_gen_obj_new(sl_data_type type, size_t size) {
   assert(o != NULL);
   o->type     = type;
   o->id       = sl_obj_next_id();
-  o->parent   = NULL;
+  o->parent   = sl_i_root_object;
   o->refcount = 1;
   o->slots    = NULL;
   return o;
@@ -87,7 +93,7 @@ static inline void sl_d_obj_free(sl_d_obj_t* obj) {
   }
   
   // Then call the internal free to finish the rest of the job.
-  switch(obj->id) {
+  switch(obj->type) {
   case SL_DATA_ARRAY:
     sl_d_array_free((sl_d_array_t*)obj);
     break;
@@ -100,8 +106,11 @@ static inline void sl_d_obj_free(sl_d_obj_t* obj) {
   case SL_DATA_OBJ:
     free(obj);
     break;
+  case SL_DATA_STRING:
+    sl_d_string_free((sl_d_string_t*)obj);
+    break;
   default:
-    LOG_ERR("Unexpected data type: %d", obj->id);
+    LOG_ERR("Unexpected data type: %d", obj->type);
   }
 }
 
@@ -134,21 +143,46 @@ sl_d_obj_t* sl_d_exception_new(int count, char** strings) {
   sl_d_string_t* s = sl_d_string_new(buff);
   sl_d_obj_set_slot(e, sl_d_sym_new("message"), (sl_d_obj_t*)s);
   
-  DEBUG("exception: %s", buff);
+  LOG_ERR("Exception: %s", buff);
   
   return e;
 }
+sl_d_obj_t* sl_d_obj_get(sl_d_obj_t* obj, sl_d_sym_t* slot) {
+  sl_d_obj_t* value = sl_d_obj_get_slot(obj, slot);
+  if(value == NULL) {
+    if(obj->parent == NULL) {
+      return SL_D_NULL;
+    } else {
+      return sl_d_obj_get(obj->parent, slot);
+    }
+  } else {
+    return value;
+  }
+}
 
 sl_d_obj_t* sl_d_obj_send(sl_d_obj_t* target, sl_d_message_t* msg) {
-  sl_d_method_t* method = (sl_d_method_t*)sl_d_obj_get_slot(target, msg->signature);
-  if(method == NULL || method->type != SL_DATA_METHOD) {
-    sl_d_sym_t* sig = msg->signature;
-    char* msgs[2] = {"Method not found: ", sig->value};
-    sl_d_obj_t* e = sl_d_exception_new(2, msgs);
-    return e;
-  }
-  DEBUG("method = %p", method);
+  sl_d_sym_t* sig;
   
+  sl_d_method_t* method = (sl_d_method_t*)sl_d_obj_get(target, msg->signature);
+  if(method == (sl_d_method_t*)SL_D_NULL) {
+    goto not_found;
+  }
+  
+  if(method->hint != NULL) {
+    return method->hint(target, msg->arguments);
+  } else {
+    DEBUG("name = %s", msg->signature->value);
+    SENTINEL("NOT IMPLEMENTED");
+  }
+  
+  return (sl_d_obj_t*)SL_D_NULL;
+  
+not_found:
+  sig = msg->signature;
+  char* msgs[2] = {"Slot not found: ", sig->value};
+  sl_d_obj_t* e = sl_d_exception_new(2, msgs);
+  return e;
+error:
   return (sl_d_obj_t*)SL_D_NULL;
 }
 
@@ -183,8 +217,13 @@ void sl_d_message_empty(sl_d_message_t* m) {
 
 sl_d_string_t* sl_d_string_new(char* value) {
   sl_d_string_t* s = sl_d_gen_obj_new(SL_DATA_STRING, sizeof(sl_d_string_t));
+  s->parent = sl_i_root_string;
   s->value = strdup(value);
   return s;
+}
+void sl_d_string_free(sl_d_string_t* s) {
+  free(s->value);
+  free(s);
 }
 
 // SCOPE ----------------------------------------------------------------------
@@ -212,6 +251,7 @@ void sl_d_obj_set_slot(sl_d_obj_t* obj, sl_d_sym_t* name, sl_d_obj_t* val) {
     check_item->value = val;
     sl_d_obj_free(old_val);
   }
+  // DEBUG("set slot: %s = %p", name->value, val);
   // Retain the value now that it's stored in this object.
   sl_d_obj_retain(val);
 }

@@ -12,17 +12,17 @@ typedef unsigned int sl_sym_id;
 typedef unsigned int sl_obj_id;
 
 typedef unsigned char sl_data_type;
-#define SL_DATA_OBJ       (sl_data_type)0
-#define SL_DATA_SYM       (sl_data_type)1
-#define SL_DATA_SCOPE     (sl_data_type)2
-#define SL_DATA_ARRAY     (sl_data_type)3
-#define SL_DATA_METHOD    (sl_data_type)4
-#define SL_DATA_INT       (sl_data_type)5
-#define SL_DATA_MESSAGE   (sl_data_type)6
-#define SL_DATA_BLOCK     (sl_data_type)7
-#define SL_DATA_NULL      (sl_data_type)8
-#define SL_DATA_EXCEPTION (sl_data_type)8
-#define SL_DATA_STRING    (sl_data_type)9
+#define SL_DATA_OBJ       0
+#define SL_DATA_SYM       1
+#define SL_DATA_SCOPE     2
+#define SL_DATA_ARRAY     3
+#define SL_DATA_METHOD    4
+#define SL_DATA_INT       5
+#define SL_DATA_MESSAGE   6
+#define SL_DATA_BLOCK     7
+#define SL_DATA_NULL      8
+#define SL_DATA_EXCEPTION 9
+#define SL_DATA_STRING    10
 
 #define SL_DATA_TYPE    sl_data_type type;
 #define SL_OBJ_ID       sl_obj_id id;
@@ -38,9 +38,9 @@ typedef unsigned char sl_data_type;
 #define SL_D_NULL sl_d_null
 #define D_NULL    sl_d_null
 
-#define DEBUG(M, ...) fprintf(stderr, "[DEBUG] %s:%s:%d: " M "\n", __FILE__, __func__, __LINE__, ##__VA_ARGS__)
-
-#define SL_DATA_EXTERN extern sl_d_obj_t* sl_d_null;
+#define SL_DATA_EXTERN extern sl_d_obj_t* sl_d_null; \
+                       extern sl_d_obj_t* sl_i_root_object; \
+                       extern sl_d_obj_t* sl_i_root_string;
 
 typedef unsigned int sl_scope_item_id;
 
@@ -75,6 +75,8 @@ typedef struct sl_d_array {
 
 typedef struct sl_d_scope {
   SL_OBJ_HEADER;
+  struct sl_d_scope* root; // Quick reference to the root scope.
+  
   // Locals of a scope are defined in .values and .methods.
   // .parent: Parent scope
   // 
@@ -157,6 +159,7 @@ sl_d_scope_t* sl_d_scope_new();
 void sl_d_scope_free(sl_d_scope_t* s);
 
 sl_d_string_t* sl_d_string_new(char* value);
+void sl_d_string_free(sl_d_string_t* s);
 
 sl_d_array_t* sl_d_array_new();
 void sl_d_array_push(sl_d_array_t* arr, sl_d_obj_t* obj);
