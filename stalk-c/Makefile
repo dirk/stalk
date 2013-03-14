@@ -8,7 +8,7 @@ LFLAGS=
 PARSE=bison
 
 # SOURCES=types.c system.c stalk.c
-SOURCES=symbol.c syntax.c data.c stalk.yy.c parse.tab.c stalk.c
+SOURCES=symbol.c data.c syntax.c stalk.yy.c parse.tab.c bootstrap.c stalk.c
 EXECUTABLE=stalk
 EXDIR=bin
 OBJECTS=$(SOURCES:.c=.o)
