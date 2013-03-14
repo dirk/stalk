@@ -141,7 +141,7 @@ void sl_d_obj_set_slot(sl_d_obj_t* obj, sl_d_sym_t* name, sl_d_obj_t* val) {
   } else {
     sl_d_obj_t* old_val = check_item->value;
     check_item->value = val;
-    sl_d_obj_free(old_val);
+    sl_d_obj_release(old_val);
   }
   // Retain the value now that it's stored in this object.
   sl_d_obj_retain(val);
@@ -206,20 +206,21 @@ sl_d_obj_t* sl_d_exception_new(int count, char** strings) {
 sl_d_obj_t* sl_d_obj_send(sl_d_obj_t* target, sl_d_message_t* msg) {
   sl_d_sym_t* sig;
   
-  sl_d_method_t* method = (sl_d_method_t*)sl_d_obj_get(target, msg->signature);
-  if(method == (sl_d_method_t*)SL_D_NULL) {
+  sl_d_method_t* slot = (sl_d_method_t*)sl_d_obj_get(target, msg->signature);
+  if(slot == (sl_d_method_t*)SL_D_NULL) {
     goto not_found;
   }
-  if(method->type == SL_DATA_METHOD) {
-    if(method->hint != NULL) {
-      return method->hint(target, msg->arguments);
+  if(slot->type == SL_DATA_METHOD) {
+    if(slot->hint != NULL) {
+      return slot->hint(target, msg->arguments);
     } else {
-      return sl_d_method_call(method, target, msg->arguments);
+      return sl_d_method_call(slot, target, msg->arguments);
       // DEBUG("name = %s", msg->signature->value);
       // SENTINEL("NOT IMPLEMENTED");
     }
   } else {
-    
+    // Just a regular value from a slot
+    return slot;
   }
   
   
@@ -340,7 +341,6 @@ sl_d_block_t* sl_d_block_new() {
   return b;
 }
 
-
 // ARRAY ----------------------------------------------------------------------
 
 // UT_icd sl_i_array_icd = {sizeof(sl_d_obj_t*), NULL, NULL, NULL};
@@ -371,27 +371,43 @@ void sl_d_array_push(sl_d_array_t* arr, sl_d_obj_t* obj) {
   utarray_push_back(arr->objs, item);
 }
 sl_d_obj_t* sl_d_array_index(sl_d_array_t* arr, int i) {
-  int len = utarray_len(arr->objs);
-  if(i >= len || i < 0) {
+  sl_i_array_item_t* item = sl_d_array_index_item(arr, i);
+  if(item == NULL) {
     char buff[8];
     sprintf(buff, "%d", i);
-    char* msgs[3] = {"Index ", buff, " out of bounds"};
-    return sl_d_exception_new(3, msgs);
-  }
-  sl_i_array_item_t* item = (sl_i_array_item_t*)utarray_eltptr(arr->objs, i);
-  if(item != NULL) {
-    return item->value;
+    char* msgs[2] = {"No item at index ", buff};
+    return sl_d_exception_new(2, msgs);
   } else {
-    LOG_ERR("Null item at array index %d", i);
+    return item->value;
+  }
+}
+sl_i_array_item_t* sl_d_array_index_item(sl_d_array_t* arr, int i) {
+  int len = utarray_len(arr->objs);
+  if(i >= len || i < 0) {
     return NULL;
   }
-  // return *utarray_eltptr(arr->objs, i);
+  return (sl_i_array_item_t*)utarray_eltptr(arr->objs, i);
 }
 sl_i_array_item_t* sl_d_array_first_item(sl_d_array_t* arr) {
   return (sl_i_array_item_t*)utarray_front(arr->objs);
 }
 sl_i_array_item_t* sl_d_array_next_item(sl_d_array_t* arr, sl_i_array_item_t* i) {
   return (sl_i_array_item_t*)utarray_next(arr->objs, i);
+}
+sl_d_obj_t* sl_d_array_index_set(sl_d_array_t* arr, int i, sl_d_obj_t* obj) {
+  sl_i_array_item_t* item = sl_d_array_index_item(arr, i);
+  if(item == NULL) {
+    char buff[8];
+    sprintf(buff, "%d", i);
+    char* msgs[2] = {"No item at index ", buff};
+    return sl_d_exception_new(2, msgs);
+  } else {
+    sl_d_obj_t* old_val = item->value;
+    item->value = obj;
+    sl_d_obj_release(old_val);
+    sl_d_obj_retain(obj);
+    return obj;
+  }
 }
 
 // SYMBOL ---------------------------------------------------------------------

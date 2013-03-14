@@ -17,18 +17,12 @@ void sl_d_bootstrap() {
   sl_d_null = null;
 }
 
+// OBJECTS --------------------------------------------------------------------
 
 static sl_d_string_t* type_str_object;
 static sl_d_sym_t*    type_sym;
 SL_I_METHOD_F(object_type_primitive) {//args: self, params
   return (sl_d_obj_t*)type_str_object;
-}
-
-static sl_d_sym_t* println_sym;
-SL_I_METHOD_F(string_println) {//args: self, params
-  sl_d_string_t* str = (sl_d_string_t*)self;
-  printf("%s\n", str->value);
-  return (sl_d_obj_t*)SL_D_NULL;
 }
 
 static sl_d_sym_t* return_sym;
@@ -39,6 +33,27 @@ SL_I_METHOD_F(object_return) {//args: self, params
     return sl_d_exception_new(1, msgs);
   }
   return (sl_d_obj_t*)sl_i_return_new(obj);
+}
+
+static sl_d_sym_t* slot_set_sym;
+SL_I_METHOD_F(object_slot_set) {//args: self, params
+  // arg 1: symbol of slot to set
+  sl_d_sym_t* sym = (sl_d_sym_t*)sl_d_array_index(params, 0);
+  if(sym == NULL || sym->type != SL_DATA_SYM) {
+    char buff[4];
+    sprintf(buff, "%d", sym->type);
+    char* msgs[2] = {"Argument 1 must be a symbol; currently = ", buff};
+    return sl_d_exception_new(2, msgs);
+  }
+  // arg 2: object to set to slot
+  sl_d_obj_t* obj = (sl_d_obj_t*)sl_d_array_index(params, 1);
+  if(obj == NULL) {
+    char* msgs[1] = {"Missing argument 2"};
+    return sl_d_exception_new(1, msgs);
+  }
+  // DEBUG("setting slot %s = %p", sym->value, obj);
+  sl_d_obj_set_slot(self, sym, (sl_d_obj_t*)obj);
+  return (sl_d_obj_t*)obj;
 }
 
 static sl_d_sym_t* methodto_sym;
@@ -61,12 +76,25 @@ SL_I_METHOD_F(object_methodto) {//args: self, params
 }
 
 
+// STRINGS --------------------------------------------------------------------
+
+static sl_d_sym_t* println_sym;
+SL_I_METHOD_F(string_println) {//args: self, params
+  sl_d_string_t* str = (sl_d_string_t*)self;
+  printf("%s\n", str->value);
+  return (sl_d_obj_t*)SL_D_NULL;
+}
+
+
+
+
 void sl_i_bootstrap() {
   // Set the statics.
   type_sym = sl_d_sym_new("type");
   println_sym = sl_d_sym_new("println");
   methodto_sym = sl_d_sym_new("method:to:");
   return_sym = sl_d_sym_new("return:");
+  slot_set_sym = sl_d_sym_new("=");
   
   // ROOT ---------------------------------------------------------------------
   
@@ -81,6 +109,12 @@ void sl_i_bootstrap() {
   type_method->hint = *object_type_primitive;
   type_method->signature = type_sym;
   sl_d_obj_set_slot(root, type_sym, (sl_d_obj_t*)type_method);
+  
+  // `object = sym val` -> val
+  sl_d_method_t* slot_set_method = sl_d_method_new();
+  slot_set_method->hint = *object_slot_set;
+  slot_set_method->signature = slot_set_sym;
+  sl_d_obj_set_slot(root, slot_set_sym, (sl_d_obj_t*)slot_set_method);
   
   // `object method: sym to: method` -> string
   sl_d_method_t* methodto_method = sl_d_method_new();
