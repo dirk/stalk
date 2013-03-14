@@ -27,9 +27,17 @@ typedef struct sl_s_base {
   SL_SYNTAX_HEADER;
 } sl_s_base_t;
 
+typedef struct sl_s_message {
+  SL_SYNTAX_HEADER;
+  sl_s_base_t* head;
+  // If it's a def:, then hint = sl_d_message_t.
+  void* hint;
+} sl_s_message_t;
+
 typedef struct sl_s_expr {
   SL_SYNTAX_HEADER;
-  sl_s_base_t *head;// Start of inner expression
+  sl_s_base_t *target;// Target for evaluating messages
+  sl_s_message_t *messages;
   // sl_s_base_t *tail;// End of inner expression
 } sl_s_expr_t;
 
@@ -43,15 +51,11 @@ typedef struct sl_s_sym {
   bool literal;
   bool operator;
   bool assign;
+  bool keyword;
   void* hint;//sl_d_sym_t
 } sl_s_sym_t;
 
-typedef struct sl_s_message {
-  SL_SYNTAX_HEADER;
-  sl_s_sym_t* head;
-  // If it's a def:, then hint = sl_d_message_t.
-  void* hint;
-} sl_s_message_t;
+
 
 typedef struct sl_s_list {
   SL_SYNTAX_HEADER;
@@ -113,10 +117,10 @@ sl_s_def_t* sl_s_def_new();
 sl_s_block_t* sl_s_block_new();
 
 sl_s_expr_t* sl_s_expr_new();
-void sl_s_expr_unshift(sl_s_expr_t* expr, sl_s_base_t* s);
+void sl_s_expr_unshift(sl_s_expr_t* expr, sl_s_message_t* s);
 
 sl_s_message_t* sl_s_message_new();
-void sl_s_message_unshift(sl_s_message_t* message, sl_s_sym_t* s);
+void sl_s_message_unshift(sl_s_message_t* message, sl_s_base_t* s);
 
 void sl_s_expr_free(sl_s_expr_t* s);
 void sl_s_sym_free(sl_s_sym_t* s);

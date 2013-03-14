@@ -75,11 +75,12 @@ sl_s_def_t* sl_s_def_new() {
 
 sl_s_expr_t* sl_s_expr_new() {
   sl_s_expr_t* s = sl_s_base_gen_new(SL_SYNTAX_EXPR, sizeof(sl_s_expr_t));
-  s->head = NULL;
+  s->target = NULL;
+  s->messages = NULL;
   return s;
 }
-void sl_s_expr_unshift(sl_s_expr_t* expr, sl_s_base_t* s) {
-  DL_PREPEND(expr->head, s);
+void sl_s_expr_unshift(sl_s_expr_t* expr, sl_s_message_t* s) {
+  DL_PREPEND(expr->messages, s);
 }
 
 // MESSAGE --------------------------------------------------------------------
@@ -92,7 +93,7 @@ sl_s_message_t* sl_s_message_new() {
   s->hint = NULL;
   return s;
 }
-void sl_s_message_unshift(sl_s_message_t* message, sl_s_sym_t* s) {
+void sl_s_message_unshift(sl_s_message_t* message, sl_s_base_t* s) {
   DL_PREPEND(message->head, s);
 }
 
@@ -158,75 +159,61 @@ void sl_s_sym_free(sl_s_sym_t* s) {
 }
 
 
+int __depth = 0;
 
 // EVALUATION -----------------------------------------------------------------
 
-static inline void* sl_s_expr_messages_eval(sl_s_expr_t* expr, void* scope) {
-  sl_s_base_t* m;
+static inline void* sl_s_messages_eval(
+  sl_d_scope_t* target,
+  sl_s_message_t* messages,
+  void* scope
+) {
   
-  // TODO: Make this actually do stuff besides just looking up a method and
-  //       calling its primitive.
+  //__depth += 1;
+  DEBUG("%d messages eval", __depth);
+  //__depth -= 1;
   
-  sl_d_obj_t* target = scope;
-  m = expr->head;
-  
-  sl_d_obj_retain(target);
-  while(m != NULL) {
-    // DEBUG(
-    //   "expr = %p, message = %p, message->type = %d",
-    //   expr,
-    //   m,
-    //   m->type
-    // );
-    sl_d_obj_t* ret = sl_s_eval(m, scope);
-    if(ret != NULL) {
-      // Literals
-      if(ret->type == SL_DATA_INT) {
-        if(target == scope) {
-          target = ret;
-        } else {
-          SENTINEL("Cannot send literal (%d)", ret->type);
-        }
-      // Messages
-      } else if(ret->type == SL_DATA_MESSAGE) {
-        ret = sl_d_obj_send(target, (sl_d_message_t*)ret);
-        sl_d_obj_release(target);
-        target = ret;
-      } else {
-        SENTINEL("Unexpected return type: %d", ret->type);
-      }
-      
-    } else {
-      LOG_ERR("Unexpected NULL return");
-    }
-    m = m->next;
-  }
-  return target;
+  return NULL;
 error:
   return NULL;
 }
 
 static inline void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope) {
+  __depth += 1;
+  
+  
+  sl_s_message_t* message = expr->messages;
+  
   while(expr != NULL) {
-    // DEBUG(
-    //   "expr = %p, expr->next = %p, expr->type = %d",
-    //   expr,
-    //   expr->next,
-    //   expr->type
-    // );
-    if(expr->head == NULL) {
-      SENTINEL("Reached empty expression");
+    DEBUG("%d expr eval", __depth);
+    sl_d_scope_t* target;
+    
+    if(expr->target == NULL) {
+      target = (sl_d_scope_t*)scope;
+    } else {
+      target = (sl_d_scope_t*)sl_s_eval(expr->target, scope);
     }
-    sl_s_expr_messages_eval(expr, scope);
+    if(target != NULL) {
+      DEBUG("%d expr target type = %d", __depth, target->type);
+    } else {
+      DEBUG("%d expr target null", __depth);
+    }
+    sl_s_messages_eval(target, expr->messages, scope);
+    
     expr = expr->next;
   }
+  
+  
+  
+  __depth -= 1;
+  
   return NULL;
 error:
   return NULL;
 }
 
-
 static inline sl_d_sym_t* sl_s_sym_eval(sl_s_sym_t* s, void* scope) {
+  // TODO: Fix this to actually do appropriate evaluation
   return sl_i_sym_hint(s);
 }
 
@@ -239,6 +226,7 @@ static inline sl_d_block_t* sl_s_block_eval(sl_s_block_t* b, void* scope) {
   return block;
 }
 
+/*
 // This will parse a message definition starting with the first sl_s_sym
 // (the one after the invoking def: symbol). It returns an sl_d_sym* with
 // the signature of the method and pushes any parameters it encounters as
@@ -293,7 +281,7 @@ static inline sl_d_message_t* sl_i_message_eval_def(sl_s_message_t* msg, void* s
   // TODO: Hook these into bootstrap
   static sl_d_sym_t* method_to_sym = NULL;
   
-  if(msg->hint) { return msg->hint; }
+  if(msg->hint) {  sl_d_obj_retain(msg->hint); return msg->hint; }
   
   if(method_to_sym == NULL) { method_to_sym = sl_d_sym_new("method:to:"); }
   
@@ -321,7 +309,31 @@ static inline sl_d_message_t* sl_i_message_eval_def(sl_s_message_t* msg, void* s
   d_msg->arguments = args;
   
   msg->hint = d_msg;
+  sl_d_obj_retain((sl_d_obj_t*)d_msg);
   return d_msg;
+}
+
+static inline void* sl_i_message_eval_plain(sl_s_message_t* m, void* scope) {
+  if(m->hint) { sl_d_obj_retain(m->hint); return m->hint; }
+  
+  sl_s_sym_t* head = m->head;
+  if(head->keyword) {
+    SENTINEL("TODO2");
+  } else {
+    // Just a plain identifier-message
+    // Empty arguments
+    sl_d_array_t* args = sl_d_array_new();
+    // Set up the message
+    sl_d_message_t* msg = sl_d_message_new();
+    msg->signature = sl_s_sym_eval(head, NULL);
+    msg->arguments = args;
+    
+    m->hint = msg;
+    sl_d_obj_retain((sl_d_obj_t*)msg);
+    return msg;
+  }
+error:
+  return SL_D_NULL;
 }
 
 static inline void* sl_s_message_eval(sl_s_message_t* m, void* scope) {
@@ -331,18 +343,26 @@ static inline void* sl_s_message_eval(sl_s_message_t* m, void* scope) {
   static sl_d_sym_t* assign_sym = NULL;
   if(assign_sym == NULL) { assign_sym = sl_d_sym_new("="); }
   
-  sl_d_sym_t* sym = sl_s_sym_eval(m->head, scope);
+  sl_d_sym_t* sym = sl_s_sym_eval((sl_s_sym_t*)m->head, scope);
   if(sym == def_sym) {
     return sl_i_message_eval_def(m, scope);
   } else if(sym == assign_sym) {
     SENTINEL("TODO");
   } else {
-    SENTINEL("TODO");
+    return sl_i_message_eval_plain(m, scope);
   }
   return SL_D_NULL;
   
 error:
   return SL_D_NULL;
+}
+*/
+static inline void* sl_s_message_eval(sl_s_message_t* m, void* scope) {
+  
+  DEBUG("%d message eval", __depth);
+  
+  return NULL;
+  
 }
 
 static inline void* sl_s_def_eval(sl_s_def_t* s, void* scope) {
@@ -351,17 +371,28 @@ static inline void* sl_s_def_eval(sl_s_def_t* s, void* scope) {
 }
 
 static inline void* sl_s_int_eval(sl_s_int_t* s, void* scope) {
-  if(s->hint) { return s->hint; }
+  if(s->hint) {  sl_d_obj_retain(s->hint); return s->hint; }
   
   sl_d_int_t* i = sl_d_int_new();
   i->value = s->value;
   s->hint = i;
+  sl_d_obj_retain((sl_d_obj_t*)i);
   return i;
+}
+
+static inline void* sl_s_string_eval(sl_s_string_t* s, void* scope) {
+  if(s->hint) { sl_d_obj_retain(s->hint); return s->hint; }
+  
+  sl_d_string_t* str = sl_d_string_new(s->value);
+  s->hint = str;
+  sl_d_obj_retain((sl_d_obj_t*)str);
+  return str;
 }
 
 void* sl_s_eval(void* _s, void* scope) {
   // Cast it into the base struct
   sl_s_base_t* s = _s;
+  sl_d_message_t* _msg;
   
   sl_syntax_type type = s->type;
   // DEBUG("node = %p, node->type: %d", _s, (int)type);
@@ -369,7 +400,13 @@ void* sl_s_eval(void* _s, void* scope) {
   switch(type) {
   case SL_SYNTAX_EXPR:
     return sl_s_expr_eval((sl_s_expr_t*)s, scope);
-  // case SL_SYNTAX_SYM:
+  case SL_SYNTAX_STRING:
+    return sl_s_string_eval((sl_s_string_t*)s, scope);
+  case SL_SYNTAX_SYM:
+    // DEBUG("there");
+    _msg = sl_d_message_new();
+    _msg->signature = sl_s_sym_eval((sl_s_sym_t*)s, scope);
+    return _msg;
   //   return sl_s_sym_eval((sl_s_sym_t*)s, scope);
   // case SL_SYNTAX_DEF:
   //   return sl_s_def_eval((sl_s_def_t*)s, scope);

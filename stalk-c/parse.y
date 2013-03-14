@@ -60,12 +60,12 @@ extern int yylineno_extern;
 %token <p_string> SL_P_ASSIGN
 
 %type <p_node> main
+%type <p_node> plain_expr;
 %type <p_node> expr
 %type <p_node> exprs
 %type <p_node> literal
 %type <p_node> ident
 %type <p_node> subexpr;
-%type <p_node> subexpr_no_ident;
 %type <p_node> message
 %type <p_node> messages
 %type <p_node> keywords
@@ -74,6 +74,7 @@ extern int yylineno_extern;
 %type <p_node> block_body;
 %type <p_node> block_body_inside;
 %type <p_node> block_inside;
+%type <p_node> target;
 
 
 %%
@@ -95,43 +96,38 @@ exprs: expr exprs {
 };
 exprs: expr { $$ = $1; };
 
-expr: messages SL_P_COMMENT SL_P_TERMINAL {
+expr_terminal: SL_P_COMMENT SL_P_TERMINAL | SL_P_TERMINAL;
+
+plain_expr: target SL_P_SEP messages {
+  sl_s_message_t* m = $3;
+  sl_s_base_t* t = $1;
+  
+  sl_s_expr_t* e = sl_s_expr_new();
+  e->target = t;
+  e->messages = m;
+  $$ = e;
+}
+plain_expr: messages {
   sl_s_message_t* m = $1;
   sl_s_expr_t* e = sl_s_expr_new();
-  e->head = (sl_s_base_t*)m;
-  DEBUG("expr: messages = %p, type = %d", m, m->type);
+  e->target = NULL;
+  e->messages = m;
   $$ = e;
-};
-expr: messages SL_P_TERMINAL {
-  sl_s_message_t* m = $1;
-  sl_s_expr_t* e = sl_s_expr_new();
-  e->head = (sl_s_base_t*)m;
-  // DEBUG("expr: messages = %p, type = %d", m, m->type);
-  $$ = e;
+}
+
+expr: plain_expr expr_terminal {
+  $$ = $1;
 };
 expr: SL_P_COMMENT SL_P_TERMINAL { $$ = NULL; };
 
-subexpr: literal { sl_s_expr_t* e = sl_s_expr_new(); e->head = $1; $$ = e; }
-       | ident { sl_s_expr_t* e = sl_s_expr_new(); e->head = $1; $$ = e; }
-       ;
-subexpr: SL_P_LPAREN messages SL_P_RPAREN {
-  sl_s_expr_t* e = sl_s_expr_new();
-  e->head = $2;
-  $$ = e;
-};
+target: subexpr;
 
-subexpr_no_ident: literal {
-  // sl_s_expr_t* e = sl_s_expr_new();
-  // sl_s_base_t* lit = $1;
-  // e->head = lit;
-  // $$ = e;
-  $$ = $1;
-};
-subexpr_no_ident: SL_P_LPAREN messages SL_P_RPAREN {
-  sl_s_expr_t* e = sl_s_expr_new();
-  e->head = $2;
-  $$ = e;
-};
+subexpr: literal { $$ = $1; }
+       | ident { $$ = $1; }
+       ;
+subexpr: SL_P_LPAREN plain_expr SL_P_RPAREN { $$ = $2; };
+subexpr: SL_P_LPAREN subexpr SL_P_RPAREN { $$ = $2; };
+
 
 messages: message SL_P_SEP messages {
   sl_s_base_t* left = $1;
@@ -151,6 +147,12 @@ sl_s_expr_t;
 message heads:
 sl_s_sym_t;
 */
+message: ident {
+  sl_s_message_t* msg = sl_s_message_new();
+  sl_s_base_t* ident;
+  msg->head = ident;
+  $$ = msg;
+}
 message: SL_P_DEF SL_P_SEP message SL_P_SEP block {
   sl_s_message_t* params = $3;
   if(params->type != SL_SYNTAX_MESSAGE) {
@@ -162,7 +164,12 @@ message: SL_P_DEF SL_P_SEP message SL_P_SEP block {
   sl_s_base_t* part = (sl_s_base_t*)params->head;
   while(part != NULL) {
     if(part->type == SL_SYNTAX_EXPR) {
-      sl_s_base_t* ident = ((sl_s_expr_t*)part)->head;
+      sl_s_expr_t* expr = (sl_s_expr_t*)part;
+      if(expr->target != NULL) {
+        yyerror(head, scanner, "Value in definition may not have target");
+        YYERROR;
+      }
+      sl_s_base_t* ident = expr->messages->head;
       if(ident->type != SL_SYNTAX_SYM) {
         yyerror(head, scanner, "Identifier must follow keyword in def:");
         YYERROR;
@@ -206,7 +213,7 @@ message: SL_P_DEF SL_P_SEP message SL_P_SEP block {
   bl->prev     = params;
   
   sl_s_message_t* msg = sl_s_message_new();
-  msg->head = def;
+  msg->head = (sl_s_base_t*)def;
   
   $$ = msg;
 };
@@ -225,7 +232,7 @@ message: ident SL_P_SEP SL_P_ASSIGN SL_P_SEP subexpr {
   ident->next = value;
   value->prev = ident;
   
-  msg->head = assign;
+  msg->head = (sl_s_base_t*)assign;
   $$ = msg;
 };
 message: SL_P_OPERATOR SL_P_SEP subexpr {
@@ -238,22 +245,15 @@ message: SL_P_OPERATOR SL_P_SEP subexpr {
   value->prev = op;
   
   sl_s_message_t* msg = sl_s_message_new();
-  msg->head = op;
+  msg->head = (sl_s_base_t*)op;
   $$ = msg;
 };
 message: keywords {
   sl_s_sym_t* head = $1;
   sl_s_message_t* msg = sl_s_message_new();
-  msg->head = head;
+  msg->head = (sl_s_base_t*)head;
   $$ = msg;
 };
-message: ident {
-  sl_s_message_t* msg = sl_s_message_new();
-  sl_s_sym_t* ident = $1;
-  msg->head = ident;
-  $$ = msg;
-};
-message: subexpr_no_ident { $$ = $1; };
 
 
 
@@ -273,6 +273,7 @@ keywords: keyword_pair { $$ = $1; };
 keyword_pair: SL_P_KEYWORD SL_P_SEP subexpr {
   sl_s_sym_t* kw = sl_s_sym_new();
   kw->value = $1;
+  kw->keyword = true;
   sl_s_expr_t* se = $3;
   
   kw->next = se;
@@ -323,11 +324,9 @@ block_header_inside: ident;
 
 block_body: block_body_inside { $$ = $1; };
 
-block_body_inside: exprs messages {
+block_body_inside: exprs plain_expr {
   sl_s_expr_t* left = $1;
-  sl_s_expr_t* right = sl_s_expr_new();
-  sl_s_base_t* msg = $2;
-  right->head = msg;
+  sl_s_expr_t* right = $2;
   
   while(left->next != NULL) {
     left = left->next;
@@ -336,13 +335,8 @@ block_body_inside: exprs messages {
   right->prev = left;
   $$ = left;
 };
-block_body_inside: exprs { $$ = $1; }
-block_body_inside: messages {
-  sl_s_expr_t* expr = sl_s_expr_new();
-  sl_s_base_t* msg = $1;
-  expr->head = msg;
-  $$ = expr;
-}
+block_body_inside: exprs { $$ = $1; };
+block_body_inside: plain_expr { $$ = $1; };
 
 ident: SL_P_IDENT {
   sl_s_sym_t* s = sl_s_sym_new();
