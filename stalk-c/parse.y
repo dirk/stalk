@@ -10,17 +10,26 @@
 typedef void* yyscan_t;
 #endif
 
+#ifndef YYLTYPE_IS_DECLARED
+#define YYLTYPE_IS_DECLARED
+typedef struct YYLTYPE {
+  char yydummy;
+} YYLTYPE;
+#endif;
+
 extern int yylex();
 extern int yyparse();
-void yyerror(sl_s_expr_t **head, yyscan_t scanner, char *err);
+void yyerror(sl_s_expr_t **head, yyscan_t scanner, const char *err);
 extern int yylineno_extern;
 %}
 
-
+%glr-parser
 %pure-parser
 %lex-param { yyscan_t scanner }
 %parse-param { sl_s_expr_t **head }
 %parse-param { yyscan_t scanner }
+
+%error-verbose
 
 %union {
   char* p_string;
@@ -29,8 +38,7 @@ extern int yylineno_extern;
   void* p_node;
 }
 
-%token SL_P_IDENT
-%token SL_P_ASSIGN
+%token <p_string> SL_P_IDENT
 %token <p_int> SL_P_INTEGER
 %token <p_float> SL_P_DECIMAL
 %token <p_string> SL_P_STRING
@@ -45,88 +53,214 @@ extern int yylineno_extern;
 %token SL_P_RSQ
 %token SL_P_TERMINAL
 %token <p_string> SL_P_KEYWORD
-%token SL_P_CONT
-%token SL_P_SWS
+%token SL_P_SEP
 %token SL_P_COMMENT
 %token <p_string> SL_P_OPERATOR
+%token SL_P_DEF
+%token <p_string> SL_P_ASSIGN
 
-%left SL_P_IDENT
-
-%type <p_node> main;
-%type <p_node> expr;
-%type <p_node> exprs;
-%type <p_node> literal;
-%type <p_node> ident;
+%type <p_node> main
+%type <p_node> expr
+%type <p_node> exprs
+%type <p_node> literal
+%type <p_node> ident
 %type <p_node> subexpr;
-%type <p_node> message;
-%type <p_node> messages;
-%type <p_node> keyword;
-%type <p_node> keywords;
+%type <p_node> subexpr_no_ident;
+%type <p_node> message
+%type <p_node> messages
+%type <p_node> keywords
 %type <p_node> keyword_pair;
+%type <p_node> block;
+%type <p_node> block_body;
+%type <p_node> block_body_inside;
+%type <p_node> block_inside;
+
 
 %%
+main: exprs { /* DEBUG("main exprs = %p", $1); */ *head = $1; };
 
-main: exprs { *head = $1; };
 exprs: expr exprs {
+  DEBUG("exprs: expr = %p, exprs = %p", $1, $2);
   sl_s_expr_t* left = $1;
   sl_s_expr_t* right = $2;
-  // sl_s_expr_unshift(right, left);
-  left->next = right;
-  right->prev = left;
+  if(left == NULL) {
+    $$ = right;
+  } else if(right == NULL) {
+    $$ = left;
+  } else {
+    left->next = right;
+    right->prev = left;
+    $$ = left;
+  }
 };
 exprs: expr { $$ = $1; };
 
-expr: messages SL_P_COMMENT SL_P_TERMINAL { $$ = $1 };
-expr: messages SL_P_TERMINAL { $$ = $1; };
-
-
-subexpr: literal { $$ = $1; }
-       | ident { $$ = $1; }
-       ;
-subexpr: SL_P_LPAREN expr SL_P_RPAREN { $$ = $2; };
-
-block: SL_P_LBRACK block_inside SL_P_RBRACK;
-block_inside: block_header block_body;
-block_header: SL_P_VERT block_header_inside SL_P_VERT;
-block_header_inside: ident SL_P_COMMA block_header_inside;
-block_header_inside: ident;
-block_body: exprs;
-
-messages: message cont messages {
-  sl_s_message_unshift($3, $1);
-  $$ = $3;
+expr: messages SL_P_COMMENT SL_P_TERMINAL {
+  sl_s_message_t* m = $1;
+  sl_s_expr_t* e = sl_s_expr_new();
+  e->head = (sl_s_base_t*)m;
+  DEBUG("expr: messages = %p, type = %d", m, m->type);
+  $$ = e;
 };
-messages: message sws messages {
-  sl_s_message_unshift($3, $1);
-  $$ = $3;
+expr: messages SL_P_TERMINAL {
+  sl_s_message_t* m = $1;
+  sl_s_expr_t* e = sl_s_expr_new();
+  e->head = (sl_s_base_t*)m;
+  // DEBUG("expr: messages = %p, type = %d", m, m->type);
+  $$ = e;
+};
+expr: SL_P_COMMENT SL_P_TERMINAL { $$ = NULL; };
+
+subexpr: literal { sl_s_expr_t* e = sl_s_expr_new(); e->head = $1; $$ = e; }
+       | ident { sl_s_expr_t* e = sl_s_expr_new(); e->head = $1; $$ = e; }
+       ;
+subexpr: SL_P_LPAREN messages SL_P_RPAREN {
+  sl_s_expr_t* e = sl_s_expr_new();
+  e->head = $2;
+  $$ = e;
+};
+
+subexpr_no_ident: literal {
+  // sl_s_expr_t* e = sl_s_expr_new();
+  // sl_s_base_t* lit = $1;
+  // e->head = lit;
+  // $$ = e;
+  $$ = $1;
+};
+subexpr_no_ident: SL_P_LPAREN messages SL_P_RPAREN {
+  sl_s_expr_t* e = sl_s_expr_new();
+  e->head = $2;
+  $$ = e;
+};
+
+messages: message SL_P_SEP messages {
+  sl_s_base_t* left = $1;
+  sl_s_base_t* right = $3;
+  left->next = right;
+  right->prev = left;
+  $$ = left;
 };
 messages: message {
   $$ = $1;
 };
+/*
+message types:
+sl_s_message_t;//calls (operator, message, assign, def)
+sl_s_expr_t;
 
-message: ident sws SL_P_ASSIGN cont subexpr;
-message: ident sws SL_P_ASSIGN sws subexpr;
+message heads:
+sl_s_sym_t;
+*/
+message: SL_P_DEF SL_P_SEP message SL_P_SEP block {
+  sl_s_message_t* params = $3;
+  if(params->type != SL_SYNTAX_MESSAGE) {
+    yyerror(head, scanner, "Message must follow def:");
+    YYERROR;
+  }
+  
+  /* flatten message into sequence of symbols */
+  sl_s_base_t* part = (sl_s_base_t*)params->head;
+  while(part != NULL) {
+    if(part->type == SL_SYNTAX_EXPR) {
+      sl_s_base_t* ident = ((sl_s_expr_t*)part)->head;
+      if(ident->type != SL_SYNTAX_SYM) {
+        yyerror(head, scanner, "Identifier must follow keyword in def:");
+        YYERROR;
+      } else {
+        sl_s_base_t* prev = (sl_s_base_t*)part->prev;
+        ident->prev = prev;
+        if(prev != NULL) {
+          prev->next = ident;
+        } else {
+          yyerror(head, scanner, "Previous is null in message symbol checker");
+          YYERROR;
+        }
+        
+        sl_s_base_t* next = (sl_s_base_t*)part->next;
+        ident->next = next;
+        if(next != NULL) {
+          next->prev = ident;
+        }
+        
+        sl_s_expr_free((sl_s_expr_t*)part);
+        part = ident;
+      }
+    } else if(part->type == SL_SYNTAX_SYM) {
+      // DEBUG("part sym = %p", part);
+      // pass
+    } else {
+      yyerror(head, scanner, "Unexpected value type in def:");
+      YYERROR;
+    }
+    part = part->next;
+  }
+  
+  sl_s_sym_t* def = sl_s_sym_new();
+  def->value = "def:";
+  sl_s_block_t* bl = $5;
+  
+  def->next    = params;
+  params->prev = def;
+  
+  params->next = bl;
+  bl->prev     = params;
+  
+  sl_s_message_t* msg = sl_s_message_new();
+  msg->head = def;
+  
+  $$ = msg;
+};
+message: ident SL_P_SEP SL_P_ASSIGN SL_P_SEP subexpr {
+  sl_s_message_t* msg = sl_s_message_new();
+  
+  sl_s_sym_t* assign = sl_s_sym_new();
+  assign->value = $3;
+  assign->assign = true;
+  sl_s_sym_t* ident = $1;
+  sl_s_expr_t* value = $5;
+  
+  assign->next = ident;
+  ident->prev = assign;
+  
+  ident->next = value;
+  value->prev = ident;
+  
+  msg->head = assign;
+  $$ = msg;
+};
+message: SL_P_OPERATOR SL_P_SEP subexpr {
+  sl_s_sym_t* op = sl_s_sym_new();
+  op->value = $1;
+  op->operator = true;
+  sl_s_expr_t* value = $3;
+  
+  op->next = value;
+  value->prev = op;
+  
+  sl_s_message_t* msg = sl_s_message_new();
+  msg->head = op;
+  $$ = msg;
+};
 message: keywords {
-  sl_s_message_t* m = sl_s_message_new();
-  m->head = $1;
-  $$ = m;
+  sl_s_sym_t* head = $1;
+  sl_s_message_t* msg = sl_s_message_new();
+  msg->head = head;
+  $$ = msg;
 };
-message: subexpr SL_P_OPERATOR subexpr;
-message: subexpr {
-  sl_s_message_t* m = sl_s_message_new();
-  m->head = $1;
-  $$ = m;
-}
+message: ident {
+  sl_s_message_t* msg = sl_s_message_new();
+  sl_s_sym_t* ident = $1;
+  msg->head = ident;
+  $$ = msg;
+};
+message: subexpr_no_ident { $$ = $1; };
 
-keywords: keyword_pair cont keywords {
-  sl_s_sym_t* left = $1;
-  sl_s_sym_t* right = $3;
-  sl_s_expr_t* left_value = left->next;
-  left_value->next = right;
-  right->prev = left_value;
-  $$ = left;
-};
-keywords: keyword_pair sws keywords {
+
+
+/* Keywords generates a regular list just like any other expression but it also
+verifies the correctness of the syntax ahead of time so we can interpret faster
+later on. */
+keywords: keyword_pair SL_P_SEP keywords {
   sl_s_sym_t* left = $1;
   sl_s_sym_t* right = $3;
   sl_s_expr_t* left_value = left->next;
@@ -135,19 +269,16 @@ keywords: keyword_pair sws keywords {
   $$ = left;
 };
 keywords: keyword_pair { $$ = $1; };
-keyword_pair: keyword sws subexpr {
+
+keyword_pair: SL_P_KEYWORD SL_P_SEP subexpr {
+  sl_s_sym_t* kw = sl_s_sym_new();
+  kw->value = $1;
   sl_s_expr_t* se = $3;
-  sl_s_sym_t*  kw = $1;
+  
   kw->next = se;
   se->prev = kw;
   $$ = kw;
 };
-keyword: SL_P_KEYWORD {
-  sl_s_sym_t* s = sl_s_sym_new();
-  s->value = $1;
-  $$ = s;
-};
-
 
 literal: SL_P_INTEGER {
   sl_s_int_t* s = sl_s_int_new();
@@ -165,26 +296,62 @@ literal: SL_P_STRING {
   $$ = s;
 };
 literal: SL_P_SYMBOL {
-  DEBUG("sym: %s", $1);
   sl_s_sym_t* s = sl_s_sym_new();
   s->value = $1;
   $$ = s;
 };
-literal: block;
-literal: array;
+
+literal: block { $$ = NULL; };
+literal: array { $$ = NULL; };
 
 array: SL_P_LSQ array_inside SL_P_RSQ;
 array: SL_P_LSQ SL_P_RSQ;
 array_inside: subexpr SL_P_COMMA array_inside;
 array_inside: subexpr;
 
-ident: SL_P_IDENT;
+block: SL_P_LBRACK block_inside SL_P_RBRACK {
+  sl_s_block_t* b = sl_s_block_new();
+  sl_s_expr_t* head = $2;
+  b->head = head;
+  $$ = b;
+};
+block_inside: block_header block_body { $$ = $2 };
+block_inside: block_body { $$ = $1 };
+block_header: SL_P_VERT block_header_inside SL_P_VERT;
+block_header_inside: ident SL_P_COMMA block_header_inside;
+block_header_inside: ident;
 
-cont: SL_P_CONT;
-sws: SL_P_SWS;
+block_body: block_body_inside { $$ = $1; };
+
+block_body_inside: exprs messages {
+  sl_s_expr_t* left = $1;
+  sl_s_expr_t* right = sl_s_expr_new();
+  sl_s_base_t* msg = $2;
+  right->head = msg;
+  
+  while(left->next != NULL) {
+    left = left->next;
+  }
+  left->next = right;
+  right->prev = left;
+  $$ = left;
+};
+block_body_inside: exprs { $$ = $1; }
+block_body_inside: messages {
+  sl_s_expr_t* expr = sl_s_expr_new();
+  sl_s_base_t* msg = $1;
+  expr->head = msg;
+  $$ = expr;
+}
+
+ident: SL_P_IDENT {
+  sl_s_sym_t* s = sl_s_sym_new();
+  s->value = $1;
+  $$ = s;
+};
 
 %%
 
-void yyerror(sl_s_expr_t **head, yyscan_t scanner, char *err) {
+void yyerror(sl_s_expr_t **head, yyscan_t scanner, const char *err) {
   DEBUG("Parse error on line %d: %s", yylineno_extern, err);
 }

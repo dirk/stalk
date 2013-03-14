@@ -1,4 +1,4 @@
-
+/*
 enum {
   // SL_P_INTEGER,
   // SL_P_DECIMAL,
@@ -8,7 +8,7 @@ enum {
   // SL_P_COMMENT,
   // SL_P_LPAREN,
   // SL_P_RPAREN,
-  SL_P_PREFACE,
+  //SL_P_PREFACE,
   // SL_P_LBRACK,
   // SL_P_RBRACK,
   // SL_P_VERT,
@@ -26,3 +26,4 @@ enum {
 typedef char* sl_p_string;
 typedef int   sl_p_int;
 typedef float sl_p_float;
+*/
