@@ -6,7 +6,6 @@
 #include "syntax.h"
 
 #define SAVE_STRING yylval->p_string = strdup(yytext);
-#define LINE_COUNT  int i = 0; while(yytext[i] != '\0') { yylineno++; i += 1; }
 
 int yylineno_extern = 1;
 #define YY_USER_ACTION yylineno_extern = yylineno;
@@ -33,20 +32,21 @@ comment     [ \t]*#[^\n]*
   return SL_P_INTEGER;
 }
 
-{id}":"       { SAVE_STRING; return SL_P_KEYWORD; }
-{id}          { SAVE_STRING; return SL_P_IDENT; }
-":"{id}       { SAVE_STRING; return SL_P_SYMBOL; }
-{comment}     { }
-"\\("[ \t\n]* { LINE_COUNT; return SL_P_LPAREN; }
-[ \t\n]*"\\)" { LINE_COUNT; return SL_P_RPAREN; }
-"{"[ \t\n]*   { LINE_COUNT; return SL_P_RBRACK; }
-[ \t\n]*"}"   { LINE_COUNT; return SL_P_LBRACK; }
-"["[ \t\n]*   { LINE_COUNT; return SL_P_LSQ; }
-[ \t\n]*"]"   { LINE_COUNT; return SL_P_RSQ; }
-[ \t]+        { return SL_P_SWS; }
-"="           { SAVE_STRING; return SL_P_ASSIGN; }
-[+\-*/\^]     { SAVE_STRING; return SL_P_OPERATOR; }
-","[ \t\n]*   { /* comma */ LINE_COUNT; return SL_P_COMMA; }
-[ \t]*"\n"[ \t\n]*   { LINE_COUNT; return SL_P_TERMINAL; }
-"\\\""[^\\\"]*"\\\"" { LINE_COUNT; SAVE_STRING; return SL_P_STRING; }
-[ \t]+"\\"{comment}?"\n"[ \t]* { LINE_COUNT; return SL_P_CONT; }
+^[ \t\n]       { }
+"def:"         {              return SL_P_DEF; }
+{id}":"        { SAVE_STRING; return SL_P_KEYWORD; }
+{id}           { SAVE_STRING; return SL_P_IDENT; }
+":"{id}        { SAVE_STRING; return SL_P_SYMBOL; }
+{comment}      { SAVE_STRING; return SL_P_COMMENT; }
+[ \t\n]*")"    {              return SL_P_RPAREN; }
+[ \t\n]*"}"    {              return SL_P_RBRACK; }
+[ \t\n]*"]"    {              return SL_P_RSQ; }
+"("[ \t\n]*({comment}"\n")* { return SL_P_LPAREN; }
+"{"[ \t\n]*({comment}"\n")* { return SL_P_LBRACK; }
+"["[ \t\n]*({comment}"\n")* { return SL_P_LSQ; }
+","[ \t\n]*({comment}"\n")* { return SL_P_COMMA; }
+"\""[^\"]*"\"" {              SAVE_STRING; return SL_P_STRING; }
+[+\-*/\^]      { SAVE_STRING; return SL_P_OPERATOR; }
+"="            {              return SL_P_ASSIGN; }
+[ \t]+("\\"{comment}?"\n"[ \n\t]*)? { return SL_P_SEP; }
+[ \t]*[\n;][ \t\n]* {         return SL_P_TERMINAL; }
