@@ -241,7 +241,7 @@ message: ident SL_P_SEP SL_P_ASSIGN SL_P_SEP subexpr {
   sl_s_message_t* msg = sl_s_message_new();
   
   sl_s_sym_t* assign = sl_s_sym_new();
-  assign->value = $3;
+  assign->value = "=";
   assign->assign = true;
   sl_s_sym_t* ident = $1;
   sl_s_expr_t* value = $5;

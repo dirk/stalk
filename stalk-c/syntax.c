@@ -192,11 +192,6 @@ error:
 }
 
 void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope) {
-  __depth += 1;
-  
-  
-  // sl_s_message_t* message = expr->messages;
-  
   sl_d_obj_t* ret = NULL;
   
   while(expr != NULL) {
@@ -211,7 +206,7 @@ void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope) {
       target = (sl_d_scope_t*)sl_s_eval(expr->target, scope);
     }
     if(target != NULL) {
-      // DEBUG("%d expr target type = %d", __depth, target->type);
+      // DEBUG("%d expr target %p type = %d", __depth, target, target->type);
     } else {
       DEBUG("%d expr target null", __depth);
     }
@@ -226,10 +221,6 @@ void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope) {
     
     expr = expr->next;
   }
-  
-  
-  
-  __depth -= 1;
   
   return ret;
 }
@@ -247,7 +238,6 @@ static inline sl_d_block_t* sl_s_block_eval(sl_s_block_t* b, void* scope) {
   // block->params = NULL;
   return block;
 }
-
 
 // This will parse a message definition starting with the first sl_s_sym
 // (the one after the invoking def: symbol). It returns an sl_d_sym* with
@@ -370,7 +360,7 @@ static inline void* sl_i_message_eval_keyword(sl_s_base_t* keyword, void* scope)
 }
 
 static inline void* sl_i_message_eval_plain(sl_s_message_t* m, void* scope) {
-  if(m->hint) { sl_d_obj_retain(m->hint); return m->hint; }
+  if(m->hint != NULL) { sl_d_obj_retain(m->hint); return m->hint; }
   
   sl_s_sym_t* head = (sl_s_sym_t*)m->head;
   if(head->keyword) {
@@ -390,6 +380,40 @@ static inline void* sl_i_message_eval_plain(sl_s_message_t* m, void* scope) {
   }
 }
 
+static inline void* sl_i_message_eval_assign(sl_s_message_t* m, void* scope) {
+  sl_s_sym_t*  assign_s = (sl_s_sym_t*)m->head;
+  sl_s_sym_t*  slot_s   = (sl_s_sym_t*)assign_s->next;
+  sl_s_base_t* val_s    = (sl_s_base_t*)slot_s->next;
+  
+  sl_d_obj_t*  slot_val   = sl_s_eval(val_s, scope);
+  
+  if(m->hint != NULL) {
+    // Used the cached message object and just update the second argument.
+    sl_d_message_t* msg = m->hint;
+    sl_d_obj_retain((sl_d_obj_t*)msg); // Keep it retained
+    sl_d_obj_t* ret = sl_d_array_index_set(msg->arguments, 1, slot_val);
+    if(ret->type == SL_DATA_EXCEPTION) {
+      sl_d_obj_release((sl_d_obj_t*)msg);
+      return ret;
+    }
+    return m->hint;
+  }
+  
+  sl_d_sym_t*  assign_sym = sl_i_sym_hint(assign_s);
+  sl_d_sym_t*  slot_sym   = sl_i_sym_hint(slot_s);
+  
+  sl_d_message_t* msg = sl_d_message_new();
+  msg->signature = assign_sym;
+  sl_d_array_t* args = sl_d_array_new();
+  sl_d_array_push(args, (sl_d_obj_t*)slot_sym);
+  sl_d_array_push(args, slot_val);
+  msg->arguments = args;
+  
+  m->hint = msg;
+  sl_d_obj_retain((sl_d_obj_t*)msg);
+  return msg;
+}
+
 static inline void* sl_s_message_eval(sl_s_message_t* m, void* scope) {
   // TODO: Hook these into bootstrap
   static sl_d_sym_t* def_sym = NULL;
@@ -402,10 +426,11 @@ static inline void* sl_s_message_eval(sl_s_message_t* m, void* scope) {
   }
   
   sl_d_sym_t* sym = sl_i_sym_hint((sl_s_sym_t*)m->head);
+  // DEBUG("sym = %s", sym->value);
   if(sym == def_sym) {
     return sl_i_message_eval_def(m, scope);
   } else if(sym == assign_sym) {
-    SENTINEL("TODO");
+    return sl_i_message_eval_assign(m, scope);
   } else {
     return sl_i_message_eval_plain(m, scope);
   }
