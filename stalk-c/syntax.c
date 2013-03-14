@@ -163,42 +163,66 @@ int __depth = 0;
 
 // EVALUATION -----------------------------------------------------------------
 
+static inline void* sl_s_message_eval(sl_s_message_t* m, void* scope);
 static inline void* sl_s_messages_eval(
-  sl_d_scope_t* target,
+  sl_d_obj_t* target,
   sl_s_message_t* messages,
   void* scope
 ) {
   
   //__depth += 1;
-  DEBUG("%d messages eval", __depth);
+  // DEBUG("%d messages eval, first = %p", __depth, messages);
   //__depth -= 1;
   
-  return NULL;
+  sl_s_message_t* message = messages;
+  sl_d_obj_t* ret = NULL;
+  while(message != NULL) {
+    ret = sl_s_message_eval(message, scope);
+    if(ret->type != SL_DATA_MESSAGE) {
+      SENTINEL("Unexpected non-message (type = %d)", ret->type);
+    }
+    target = sl_d_obj_send(target, (sl_d_message_t*)ret);
+    
+    message = message->next;
+  }
+  
+  return target;
 error:
   return NULL;
 }
 
-static inline void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope) {
+void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope) {
   __depth += 1;
   
   
-  sl_s_message_t* message = expr->messages;
+  // sl_s_message_t* message = expr->messages;
+  
+  sl_d_obj_t* ret = NULL;
   
   while(expr != NULL) {
-    DEBUG("%d expr eval", __depth);
+    // DEBUG("%d expr eval", __depth);
     sl_d_scope_t* target;
     
     if(expr->target == NULL) {
+      // DEBUG("null target");
       target = (sl_d_scope_t*)scope;
     } else {
+      // DEBUG("target = %p, target->type = %d", expr->target, expr->target->type);
       target = (sl_d_scope_t*)sl_s_eval(expr->target, scope);
     }
     if(target != NULL) {
-      DEBUG("%d expr target type = %d", __depth, target->type);
+      // DEBUG("%d expr target type = %d", __depth, target->type);
     } else {
       DEBUG("%d expr target null", __depth);
     }
-    sl_s_messages_eval(target, expr->messages, scope);
+    ret = sl_s_messages_eval((sl_d_obj_t*)target, expr->messages, scope);
+    if(ret != NULL && ret->type == SL_DATA_RETURN) {
+      sl_i_return_t* _ret = (sl_i_return_t*)ret;
+      return _ret->value;
+    }
+    if(ret != NULL && expr->next == NULL) {
+      return ret;
+    }
     
     expr = expr->next;
   }
@@ -207,9 +231,7 @@ static inline void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope) {
   
   __depth -= 1;
   
-  return NULL;
-error:
-  return NULL;
+  return ret;
 }
 
 static inline sl_d_sym_t* sl_s_sym_eval(sl_s_sym_t* s, void* scope) {
@@ -226,7 +248,7 @@ static inline sl_d_block_t* sl_s_block_eval(sl_s_block_t* b, void* scope) {
   return block;
 }
 
-/*
+
 // This will parse a message definition starting with the first sl_s_sym
 // (the one after the invoking def: symbol). It returns an sl_d_sym* with
 // the signature of the method and pushes any parameters it encounters as
@@ -236,43 +258,51 @@ static inline sl_d_sym_t* sl_i_message_signature_params(
   sl_d_array_t* params
 ) {
   if(start->operator) {
-    // DEBUG("op = %s", start->value);
-    sl_d_sym_t* sig = sl_s_sym_eval(start, NULL);
+    // Operator
+    sl_d_sym_t* sig = sl_i_sym_hint(start);
     sl_s_sym_t* param_1 = start->next;
     sl_s_sym_t* param_2 = param_1->next;
     
-    sl_d_sym_t* param_ident = sl_s_sym_eval(param_1, NULL);
+    sl_d_sym_t* param_ident = sl_i_sym_hint(param_1);
     sl_d_array_push(params, (sl_d_obj_t*)param_ident);
-    sl_d_sym_t* param_value = sl_s_sym_eval(param_2, NULL);
+    sl_d_sym_t* param_value = sl_i_sym_hint(param_2);
     sl_d_array_push(params, (sl_d_obj_t*)param_value);
     return sig;
-  }
+  } else
   if(start->assign) {
-    // DEBUG("assign = %s", start->value);
-    sl_d_sym_t* sig = sl_s_sym_eval(start, NULL);
+    // Assignment
+    sl_d_sym_t* sig = sl_i_sym_hint(start);
     
-    sl_d_sym_t* param_value = sl_s_sym_eval(start->next, NULL);
+    sl_d_sym_t* param_value = sl_i_sym_hint(start->next);
     sl_d_array_push(params, (sl_d_obj_t*)param_value);
+    return sig;
+  } else
+  if(start->keyword) {
+    // Keyword
+    char sig[80];
+    bool is_keyword = true;
+    sl_s_sym_t* part = start;
+    while(part != NULL) {
+      if(is_keyword) {
+        strcpy(sig, part->value);
+      } else {
+        sl_d_sym_t* param = sl_i_sym_hint(part);
+        sl_d_array_push(params, (sl_d_obj_t*)param);
+      }
+      part = part->next;
+      is_keyword = !is_keyword;
+    }
+  
+    // DEBUG("sig = '%s'", sig);
+    sl_d_sym_t *sym = sl_d_sym_new(sig);//cstring
+    return sym;
+  } else {
+    // Plain (just an identifier)
+    sl_d_sym_t* sig = sl_i_sym_hint(start);
     return sig;
   }
   
-  char sig[80];
-  bool is_keyword = true;
-  sl_s_sym_t* part = start;
-  while(part != NULL) {
-    if(is_keyword) {
-      strcpy(sig, part->value);
-    } else {
-      sl_d_sym_t* param = sl_s_sym_eval(part, NULL);
-      sl_d_array_push(params, (sl_d_obj_t*)param);
-    }
-    part = part->next;
-    is_keyword = !is_keyword;
-  }
   
-  // DEBUG("sig = '%s'", sig);
-  sl_d_sym_t *sym = sl_d_sym_new(sig);//cstring
-  return sym;
 }
 
 // This evaluations a method defined by an sl_s_message and returns an
@@ -285,12 +315,12 @@ static inline sl_d_message_t* sl_i_message_eval_def(sl_s_message_t* msg, void* s
   
   if(method_to_sym == NULL) { method_to_sym = sl_d_sym_new("method:to:"); }
   
-  sl_s_sym_t*     def_sym    = msg->head;
-  sl_s_message_t* def_params = def_sym->next;
-  sl_s_block_t*   def_block  = def_params->next;
+  sl_s_sym_t*     def_sym    = (sl_s_sym_t*)msg->head;
+  sl_s_message_t* def_params = (sl_s_message_t*)def_sym->next;
+  sl_s_block_t*   def_block  = (sl_s_block_t*)def_params->next;
   
   sl_d_array_t* params = sl_d_array_new();
-  sl_d_sym_t* sig = sl_i_message_signature_params(def_params->head, params);
+  sl_d_sym_t* sig = sl_i_message_signature_params((sl_s_sym_t*)def_params->head, params);
   sl_d_block_t* block = sl_s_block_eval(def_block, scope);
   
   // TODO: Maybe abstract methods into just simple blocks?
@@ -303,7 +333,6 @@ static inline sl_d_message_t* sl_i_message_eval_def(sl_s_message_t* msg, void* s
   sl_d_array_push(args, (sl_d_obj_t*)method->signature);
   sl_d_array_push(args, (sl_d_obj_t*)method);
   
-  
   sl_d_message_t* d_msg = sl_d_message_new();
   d_msg->signature = method_to_sym;
   d_msg->arguments = args;
@@ -313,27 +342,52 @@ static inline sl_d_message_t* sl_i_message_eval_def(sl_s_message_t* msg, void* s
   return d_msg;
 }
 
+static inline void* sl_i_message_eval_keyword(sl_s_base_t* keyword, void* scope) {
+  sl_d_array_t* args = sl_d_array_new();
+  
+  // Keyword
+  char sig[80];
+  bool is_keyword = true;
+  sl_s_base_t* part = keyword;
+  while(part != NULL) {
+    if(is_keyword) {
+      sl_s_sym_t* part_sym = (sl_s_sym_t*)part;
+      strcpy(sig, part_sym->value);
+    } else {
+      sl_s_base_t* arg = part;
+      sl_d_array_push(args, sl_s_eval(arg, scope));
+    }
+    part = part->next;
+    is_keyword = !is_keyword;
+  }
+  sl_d_sym_t *sym = sl_d_sym_new(sig);//cstring
+  
+  sl_d_message_t* msg = sl_d_message_new();
+  msg->signature = sym;
+  msg->arguments = args;
+  sl_d_obj_retain((sl_d_obj_t*)msg);
+  return msg;
+}
+
 static inline void* sl_i_message_eval_plain(sl_s_message_t* m, void* scope) {
   if(m->hint) { sl_d_obj_retain(m->hint); return m->hint; }
   
-  sl_s_sym_t* head = m->head;
+  sl_s_sym_t* head = (sl_s_sym_t*)m->head;
   if(head->keyword) {
-    SENTINEL("TODO2");
+    return sl_i_message_eval_keyword((sl_s_base_t*)head, scope);
   } else {
     // Just a plain identifier-message
     // Empty arguments
     sl_d_array_t* args = sl_d_array_new();
     // Set up the message
     sl_d_message_t* msg = sl_d_message_new();
-    msg->signature = sl_s_sym_eval(head, NULL);
+    msg->signature = sl_i_sym_hint(head);
     msg->arguments = args;
     
     m->hint = msg;
     sl_d_obj_retain((sl_d_obj_t*)msg);
     return msg;
   }
-error:
-  return SL_D_NULL;
 }
 
 static inline void* sl_s_message_eval(sl_s_message_t* m, void* scope) {
@@ -343,7 +397,11 @@ static inline void* sl_s_message_eval(sl_s_message_t* m, void* scope) {
   static sl_d_sym_t* assign_sym = NULL;
   if(assign_sym == NULL) { assign_sym = sl_d_sym_new("="); }
   
-  sl_d_sym_t* sym = sl_s_sym_eval((sl_s_sym_t*)m->head, scope);
+  if(m->head == NULL) {
+    SENTINEL("Message must have a head");
+  }
+  
+  sl_d_sym_t* sym = sl_i_sym_hint((sl_s_sym_t*)m->head);
   if(sym == def_sym) {
     return sl_i_message_eval_def(m, scope);
   } else if(sym == assign_sym) {
@@ -355,14 +413,6 @@ static inline void* sl_s_message_eval(sl_s_message_t* m, void* scope) {
   
 error:
   return SL_D_NULL;
-}
-*/
-static inline void* sl_s_message_eval(sl_s_message_t* m, void* scope) {
-  
-  DEBUG("%d message eval", __depth);
-  
-  return NULL;
-  
 }
 
 static inline void* sl_s_def_eval(sl_s_def_t* s, void* scope) {

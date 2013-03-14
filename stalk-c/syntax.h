@@ -124,6 +124,8 @@ void sl_s_message_unshift(sl_s_message_t* message, sl_s_base_t* s);
 
 void sl_s_expr_free(sl_s_expr_t* s);
 void sl_s_sym_free(sl_s_sym_t* s);
+
 void* sl_s_eval(void* _s, void* scope);
+void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope);
 
 #endif

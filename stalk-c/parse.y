@@ -81,7 +81,6 @@ extern int yylineno_extern;
 main: exprs { /* DEBUG("main exprs = %p", $1); */ *head = $1; };
 
 exprs: expr exprs {
-  DEBUG("exprs: expr = %p, exprs = %p", $1, $2);
   sl_s_expr_t* left = $1;
   sl_s_expr_t* right = $2;
   if(left == NULL) {
@@ -120,7 +119,9 @@ expr: plain_expr expr_terminal {
 };
 expr: SL_P_COMMENT SL_P_TERMINAL { $$ = NULL; };
 
-target: subexpr;
+target: literal { $$ = $1; };
+target: SL_P_LPAREN plain_expr SL_P_RPAREN { $$ = $2; };
+target: SL_P_LPAREN subexpr SL_P_RPAREN { $$ = $2; };
 
 subexpr: literal { $$ = $1; }
        | ident { $$ = $1; }
@@ -130,14 +131,33 @@ subexpr: SL_P_LPAREN subexpr SL_P_RPAREN { $$ = $2; };
 
 
 messages: message SL_P_SEP messages {
-  sl_s_base_t* left = $1;
-  sl_s_base_t* right = $3;
+  sl_s_message_t* left  = (sl_s_message_t*)$1;
+  sl_s_message_t* right = (sl_s_message_t*)$3;
+  if(left->type != SL_SYNTAX_MESSAGE) {
+    DEBUG("Left must be message (currently %d)", left->type);
+  }
+  if(right->type != SL_SYNTAX_MESSAGE) {
+    DEBUG("Right must be message (currently %d)", right->type);
+  }
+  if(left->head == NULL) {
+    DEBUG("Left head is null");
+  }
+  if(right->head == NULL) {
+    DEBUG("Right head is null");
+  }
   left->next = right;
   right->prev = left;
   $$ = left;
 };
 messages: message {
-  $$ = $1;
+  sl_s_message_t* m = (sl_s_message_t*)$1;
+  if(m->type != SL_SYNTAX_MESSAGE) {
+    DEBUG("Message must be message (currently %d)", m->type);
+  }
+  if(m->head == NULL) {
+    DEBUG("Message head is null");
+  }
+  $$ = m;
 };
 /*
 message types:
@@ -149,7 +169,7 @@ sl_s_sym_t;
 */
 message: ident {
   sl_s_message_t* msg = sl_s_message_new();
-  sl_s_base_t* ident;
+  sl_s_base_t* ident = $1;
   msg->head = ident;
   $$ = msg;
 }
