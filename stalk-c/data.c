@@ -17,13 +17,13 @@ static pthread_mutex_t sl_i_obj_id_mutex = PTHREAD_MUTEX_INITIALIZER;
 static sl_d_sym_t* sl_i_sym_table = NULL;
 static pthread_rwlock_t sl_i_sym_table_lock = PTHREAD_RWLOCK_INITIALIZER;
 
-// #define aliases SL_D_NULL and D_NULL to sl_d_null.
+// data.h #defines aliases SL_D_NULL and D_NULL to sl_d_null.
 // Throw in "extern sl_d_null_t* sl_d_null;" into any source files that need
-// this.
+// this (or just do "SL_DATA_EXTERN;").
 // 
-// Global immutable null object
+// Global immutable null object.
 sl_d_obj_t* sl_d_null = NULL;
-// Global immutable root object
+// Global immutable root objects.
 sl_d_obj_t* sl_i_root_object = NULL;
 sl_d_obj_t* sl_i_root_string = NULL;
 
@@ -114,7 +114,60 @@ static inline void sl_d_obj_free(sl_d_obj_t* obj) {
   }
 }
 
-// MESSAGE SENDING ------------------------------------------------------------
+// OBJECT SLOTS ---------------------------------------------------------------
+
+sl_d_obj_t* sl_d_obj_get(sl_d_obj_t* obj, sl_d_sym_t* slot) {
+  sl_d_obj_t* value = sl_d_obj_get_slot(obj, slot);
+  if(value == NULL) {
+    if(obj->parent == NULL) {
+      return SL_D_NULL;
+    } else {
+      return sl_d_obj_get(obj->parent, slot);
+    }
+  } else {
+    return value;
+  }
+}
+void sl_d_obj_set_slot(sl_d_obj_t* obj, sl_d_sym_t* name, sl_d_obj_t* val) {
+  // DEBUG("set slot on %p: %s = %p", obj, name->value, val);
+  sl_i_sym_item_t* check_item;
+  sl_sym_id id = name->sym_id;
+  HASH_FIND_INT(obj->slots, &id, check_item);
+  if(check_item == NULL) {
+    sl_i_sym_item_t* item = malloc(sizeof(sl_i_sym_item_t));
+    item->id = id;
+    item->value = val;
+    HASH_ADD_INT(obj->slots, id, item);
+  } else {
+    sl_d_obj_t* old_val = check_item->value;
+    check_item->value = val;
+    sl_d_obj_free(old_val);
+  }
+  // Retain the value now that it's stored in this object.
+  sl_d_obj_retain(val);
+}
+sl_d_obj_t* sl_d_obj_get_slot(sl_d_obj_t* obj, sl_d_sym_t* name) {
+  // DEBUG("get slot on %p: %s", obj, name->value);
+  sl_i_sym_item_t* val;
+  sl_sym_id id = name->sym_id;
+  HASH_FIND_INT(obj->slots, &id, val);
+  if(val == NULL) {
+    return NULL;
+  } else {
+    return val->value;
+  }
+}
+
+sl_d_obj_t* sl_d_block_call(
+  sl_d_block_t* block,
+  sl_d_scope_t* scope,
+  sl_d_array_t* params
+) {
+  scope->parent = block->closure;
+  return sl_s_expr_eval(block->expr, scope);
+}
+
+// EXCEPTIONS -----------------------------------------------------------------
 
 sl_d_obj_t* sl_d_exception_new(int count, char** strings) {
   // Calculate the lengths
@@ -147,18 +200,8 @@ sl_d_obj_t* sl_d_exception_new(int count, char** strings) {
   
   return e;
 }
-sl_d_obj_t* sl_d_obj_get(sl_d_obj_t* obj, sl_d_sym_t* slot) {
-  sl_d_obj_t* value = sl_d_obj_get_slot(obj, slot);
-  if(value == NULL) {
-    if(obj->parent == NULL) {
-      return SL_D_NULL;
-    } else {
-      return sl_d_obj_get(obj->parent, slot);
-    }
-  } else {
-    return value;
-  }
-}
+
+// MESSAGE SENDING ------------------------------------------------------------
 
 sl_d_obj_t* sl_d_obj_send(sl_d_obj_t* target, sl_d_message_t* msg) {
   sl_d_sym_t* sig;
@@ -167,13 +210,18 @@ sl_d_obj_t* sl_d_obj_send(sl_d_obj_t* target, sl_d_message_t* msg) {
   if(method == (sl_d_method_t*)SL_D_NULL) {
     goto not_found;
   }
-  
-  if(method->hint != NULL) {
-    return method->hint(target, msg->arguments);
+  if(method->type == SL_DATA_METHOD) {
+    if(method->hint != NULL) {
+      return method->hint(target, msg->arguments);
+    } else {
+      return sl_d_method_call(method, target, msg->arguments);
+      // DEBUG("name = %s", msg->signature->value);
+      // SENTINEL("NOT IMPLEMENTED");
+    }
   } else {
-    DEBUG("name = %s", msg->signature->value);
-    SENTINEL("NOT IMPLEMENTED");
+    
   }
+  
   
   return (sl_d_obj_t*)SL_D_NULL;
   
@@ -182,8 +230,15 @@ not_found:
   char* msgs[2] = {"Slot not found: ", sig->value};
   sl_d_obj_t* e = sl_d_exception_new(2, msgs);
   return e;
-error:
-  return (sl_d_obj_t*)SL_D_NULL;
+}
+
+// RETURN ---------------------------------------------------------------------
+
+sl_i_return_t* sl_i_return_new(sl_d_obj_t* value) {
+  sl_i_return_t* r;
+  r = sl_d_gen_obj_new(SL_DATA_RETURN, sizeof(sl_i_return_t));
+  r->value = value;
+  return r;
 }
 
 // METHOD ---------------------------------------------------------------------
@@ -196,6 +251,44 @@ sl_d_method_t* sl_d_method_new() {
   m->block = NULL;
   m->hint = NULL;
   return m;
+}
+
+sl_d_obj_t* sl_d_method_call(
+  sl_d_method_t* method,
+  sl_d_obj_t* self,
+  sl_d_array_t* args
+) {
+  // TODO: Hook these into bootstrap
+  static sl_d_sym_t* self_sym = NULL;
+  if(self_sym == NULL) { self_sym = sl_d_sym_new("self"); }
+  
+  static sl_d_array_t* block_params = NULL;
+  if(block_params == NULL) { block_params = sl_d_array_new(); }
+  
+  sl_d_scope_t* scope = sl_d_scope_new();
+  
+  sl_i_array_item_t* param_item = sl_d_array_first_item(method->params);
+  sl_i_array_item_t* arg_item   = sl_d_array_first_item(args);
+  int i = 1;
+  while(param_item != NULL) {
+    if(arg_item == NULL) {
+      char buff[4];
+      sprintf(buff, "%d", i);
+      char* msgs[4] = {
+        "Missing argument ", buff,
+        " for method ", method->signature->value
+      };
+      return sl_d_exception_new(4, msgs);
+    }
+    sl_d_obj_set_slot(
+      (sl_d_obj_t*)scope,
+      (sl_d_sym_t*)param_item->value,
+      arg_item->value
+    );
+  }
+  sl_d_obj_set_slot((sl_d_obj_t*)scope, self_sym, self);
+  
+  return sl_d_block_call(method->block, scope, block_params);
 }
 
 // MESSAGE --------------------------------------------------------------------
@@ -237,35 +330,6 @@ void sl_d_scope_free(sl_d_scope_t* s) {
   free(s);
 }
 
-void sl_d_obj_set_slot(sl_d_obj_t* obj, sl_d_sym_t* name, sl_d_obj_t* val) {
-  sl_i_sym_item_t* check_item;
-  sl_sym_id id = name->sym_id;
-  HASH_FIND_INT(obj->slots, &id, check_item);
-  if(check_item == NULL) {
-    sl_i_sym_item_t* item = malloc(sizeof(sl_i_sym_item_t));
-    item->id = id;
-    item->value = val;
-    HASH_ADD_INT(obj->slots, id, item);
-  } else {
-    sl_d_obj_t* old_val = check_item->value;
-    check_item->value = val;
-    sl_d_obj_free(old_val);
-  }
-  // DEBUG("set slot: %s = %p", name->value, val);
-  // Retain the value now that it's stored in this object.
-  sl_d_obj_retain(val);
-}
-sl_d_obj_t* sl_d_obj_get_slot(sl_d_obj_t* obj, sl_d_sym_t* name) {
-  sl_i_sym_item_t* val;
-  sl_sym_id id = name->sym_id;
-  HASH_FIND_INT(obj->slots, &id, val);
-  if(val == NULL) {
-    return NULL;
-  } else {
-    return val->value;
-  }
-}
-
 // BLOCK ----------------------------------------------------------------------
 
 sl_d_block_t* sl_d_block_new() {
@@ -279,7 +343,8 @@ sl_d_block_t* sl_d_block_new() {
 
 // ARRAY ----------------------------------------------------------------------
 
-UT_icd sl_i_array_icd = {sizeof(sl_d_obj_t*), NULL, NULL, NULL};
+// UT_icd sl_i_array_icd = {sizeof(sl_d_obj_t*), NULL, NULL, NULL};
+UT_icd sl_i_array_icd = {sizeof(sl_i_array_item_t*), NULL, NULL, NULL};
 
 sl_d_array_t* sl_d_array_new() {
   sl_d_array_t* arr;
@@ -300,8 +365,33 @@ void sl_d_array_free(sl_d_array_t* arr) {
   free(arr);
 }
 void sl_d_array_push(sl_d_array_t* arr, sl_d_obj_t* obj) {
+  sl_i_array_item_t* item = malloc(sizeof(sl_i_array_item_t));
+  item->value = obj;
   sl_d_obj_retain(obj);
-  utarray_push_back(arr->objs, &obj);
+  utarray_push_back(arr->objs, item);
+}
+sl_d_obj_t* sl_d_array_index(sl_d_array_t* arr, int i) {
+  int len = utarray_len(arr->objs);
+  if(i >= len || i < 0) {
+    char buff[8];
+    sprintf(buff, "%d", i);
+    char* msgs[3] = {"Index ", buff, " out of bounds"};
+    return sl_d_exception_new(3, msgs);
+  }
+  sl_i_array_item_t* item = (sl_i_array_item_t*)utarray_eltptr(arr->objs, i);
+  if(item != NULL) {
+    return item->value;
+  } else {
+    LOG_ERR("Null item at array index %d", i);
+    return NULL;
+  }
+  // return *utarray_eltptr(arr->objs, i);
+}
+sl_i_array_item_t* sl_d_array_first_item(sl_d_array_t* arr) {
+  return (sl_i_array_item_t*)utarray_front(arr->objs);
+}
+sl_i_array_item_t* sl_d_array_next_item(sl_d_array_t* arr, sl_i_array_item_t* i) {
+  return (sl_i_array_item_t*)utarray_next(arr->objs, i);
 }
 
 // SYMBOL ---------------------------------------------------------------------
@@ -347,7 +437,7 @@ sl_d_sym_t* sl_d_sym_new(char* name) {
   return s;
 }
 void sl_d_sym_free(sl_d_sym_t* sym) {
-  // LOG_WARN("This function should not normally be called!");
+  LOG_WARN("This function should not normally be called!");
   assert(pthread_rwlock_wrlock(&sl_i_sym_table_lock) == 0);
   HASH_DEL(sl_i_sym_table, sym);
   pthread_rwlock_unlock(&sl_i_sym_table_lock);

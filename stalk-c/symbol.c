@@ -26,10 +26,11 @@ inline unsigned int sl_i_fnv1a(char *str, int len) {
 }
 
 char* sl_i_sym_value_to_cstring(sl_d_sym_t* s) {
-  LOG_WARN("Dangerous! Make sure to free the return pointer.");
-  char* buffer = malloc(sizeof(char) * (s->length + 1));
-  sprintf(buffer, "%*s", s->length, s->value);
-  return buffer;
+  // LOG_WARN("Dangerous! Make sure to free the return pointer.");
+  // char* buffer = malloc(sizeof(char) * (s->length + 1));
+  // sprintf(buffer, "%*s", s->length, s->value);
+  // return buffer;
+  return s->value;
 }
 
 bool sl_i_sym_eq(sl_d_sym_t* a, sl_d_sym_t* b) {

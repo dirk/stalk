@@ -23,6 +23,7 @@ typedef unsigned char sl_data_type;
 #define SL_DATA_NULL      8
 #define SL_DATA_EXCEPTION 9
 #define SL_DATA_STRING    10
+#define SL_DATA_RETURN    11
 
 #define SL_DATA_TYPE    sl_data_type type;
 #define SL_OBJ_ID       sl_obj_id id;
@@ -55,6 +56,15 @@ typedef struct sl_i_sym_item {
 typedef struct sl_d_obj {
   SL_OBJ_HEADER;
 } sl_d_obj_t;
+
+typedef struct sl_i_return {
+  SL_OBJ_HEADER;
+  sl_d_obj_t* value;
+} sl_i_return_t;
+
+typedef struct sl_i_array_item {
+  sl_d_obj_t* value;
+} sl_i_array_item_t;
 
 typedef struct sl_d_int {
   SL_OBJ_HEADER;
@@ -149,7 +159,14 @@ sl_d_obj_t* sl_d_obj_send(sl_d_obj_t* target, sl_d_message_t* ret);
 sl_d_sym_t* sl_d_sym_new(char* name);
 void sl_d_sym_free(sl_d_sym_t* sym);
 
+sl_i_return_t* sl_i_return_new(sl_d_obj_t* value);
+
 sl_d_method_t* sl_d_method_new();
+sl_d_obj_t* sl_d_method_call(
+  sl_d_method_t* method,
+  sl_d_obj_t* self,
+  sl_d_array_t* args
+);
 
 sl_d_message_t* sl_d_message_new();
 
@@ -163,10 +180,14 @@ void sl_d_string_free(sl_d_string_t* s);
 
 sl_d_array_t* sl_d_array_new();
 void sl_d_array_push(sl_d_array_t* arr, sl_d_obj_t* obj);
+sl_d_obj_t* sl_d_array_index(sl_d_array_t* arr, int i);
 void sl_d_array_free(sl_d_array_t* arr);
+sl_i_array_item_t* sl_d_array_first_item(sl_d_array_t* arr);
+sl_i_array_item_t* sl_d_array_next_item(sl_d_array_t* arr, sl_i_array_item_t* i);
 
 sl_d_int_t* sl_d_int_new();
 void sl_d_int_free(sl_d_int_t* arr);
 
+sl_d_obj_t* sl_d_exception_new(int count, char** strings);
 
 #endif
