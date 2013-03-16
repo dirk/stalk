@@ -207,7 +207,10 @@ sl_d_obj_t* sl_d_obj_get_slot(sl_d_obj_t* obj, sl_d_sym_t* name) {
 
 // EXCEPTIONS -----------------------------------------------------------------
 
-sl_d_obj_t* sl_d_exception_new(int count, char** strings) {
+sl_d_exception_t* sl_d_exception_new(int count, char** strings) {
+  static sl_d_sym_t* message_sym = NULL;
+  if(message_sym == NULL) { message_sym = sl_d_sym_new("message"); }
+  
   // Calculate the lengths
   int lengths[count];
   int total_length = 0;
@@ -228,15 +231,77 @@ sl_d_obj_t* sl_d_exception_new(int count, char** strings) {
   // buff[total_length - 2] = '\0';
   buff[total_length - 1] = '\0';
   
-  sl_d_obj_t* e = sl_d_obj_new();
-  e->type = SL_DATA_EXCEPTION;
+  sl_d_exception_t* e = sl_d_gen_obj_new(
+    SL_DATA_EXCEPTION, sizeof(sl_d_exception_t)
+  );
+  e->traceback = sl_d_traceback_new();
   // Set message string on slot
   sl_d_string_t* s = sl_d_string_new(buff);
-  sl_d_obj_set_slot(e, sl_d_sym_new("message"), (sl_d_obj_t*)s);
+  sl_d_obj_set_slot(
+    (sl_d_obj_t*)e, message_sym, (sl_d_obj_t*)s
+  );
   
-  LOG_ERR("Exception: %s", buff);
+  //LOG_ERR("Exception: %s", buff);
   
   return e;
+}
+
+sl_i_traceback_t* sl_d_traceback_new() {
+  sl_i_traceback_t* t = malloc(sizeof(sl_i_traceback_t));
+  t->head = NULL;
+  t->tail = NULL;
+  return t;
+}
+sl_i_traceback_frame_t* sl_d_traceback_frame_new() {
+  sl_i_traceback_frame_t* tf = malloc(sizeof(sl_i_traceback_frame_t));
+  tf->prev = NULL;
+  tf->next = NULL;
+  tf->signature = NULL;
+  tf->source = "<none>";
+  tf->line = 0;
+  return tf;
+}
+void sl_d_traceback_push_frame(
+  sl_i_traceback_t* t, sl_i_traceback_frame_t* tf
+) {
+  if(t->head == NULL) { t->head = tf; }
+  sl_i_traceback_frame_t* prev = t->tail;
+  if(prev != NULL) {
+    prev->next = tf;
+    tf->prev   = prev;
+  }
+  t->tail = tf;
+}
+
+void sl_i_traceback_print(sl_i_traceback_t* t) {
+  fprintf(stderr, "  Traceback:\n");
+  sl_i_traceback_frame_t* tf = t->head;
+  while(tf != NULL) {
+    fprintf(
+      stderr, "    %s at %s:%d\n",
+      tf->signature->value, tf->source, tf->line
+    );
+    tf = tf->next;
+  }
+  
+}
+
+void sl_i_exception_print(sl_d_exception_t* e) {
+  static sl_d_sym_t* message_sym = NULL;
+  if(message_sym == NULL) { message_sym = sl_d_sym_new("message"); }
+  
+  fprintf(stderr, "Exception:\n");
+  sl_d_string_t* message = (sl_d_string_t*)sl_d_obj_get_slot(
+    (sl_d_obj_t*)e, message_sym
+  );
+  if(message != NULL) {
+    fprintf(stderr, "  Message: %s\n", message->value);
+  } else {
+    fprintf(stderr, "  No message\n");
+  }
+  if(e->traceback != NULL) {
+    sl_i_traceback_print(e->traceback);
+  }
 }
 
 // MESSAGE SENDING ------------------------------------------------------------
@@ -265,8 +330,11 @@ sl_d_obj_t* sl_d_obj_send(sl_d_obj_t* target, sl_d_message_t* msg) {
 not_found:
   sig = msg->signature;
   char* msgs[2] = {"Slot not found: ", sig->value};
-  sl_d_obj_t* e = sl_d_exception_new(2, msgs);
-  return e;
+  sl_d_exception_t* e = sl_d_exception_new(2, msgs);
+  /*sl_i_traceback_frame_t* tf = sl_d_traceback_frame_new();
+  tf->signature = sig;
+  sl_d_traceback_push_frame(e->traceback, tf);*/
+  return (sl_d_obj_t*)e;
 }
 
 // RETURN ---------------------------------------------------------------------
@@ -321,7 +389,7 @@ sl_d_obj_t* sl_d_method_call(
         "Missing argument ", buff,
         " for method ", method->signature->value
       };
-      return sl_d_exception_new(4, msgs);
+      return (sl_d_obj_t*)sl_d_exception_new(4, msgs);
     }
     sl_d_obj_set_slot(
       (sl_d_obj_t*)scope,
@@ -448,7 +516,7 @@ sl_d_obj_t* sl_d_array_index(sl_d_array_t* arr, int i) {
     char buff[12];
     sprintf(buff, "%d", i);
     char* msgs[2] = {"No item at index ", buff};
-    return sl_d_exception_new(2, msgs);
+    return (sl_d_obj_t*)sl_d_exception_new(2, msgs);
   } else {
     return item->value;
   }
@@ -472,7 +540,7 @@ sl_d_obj_t* sl_d_array_index_set(sl_d_array_t* arr, int i, sl_d_obj_t* obj) {
     char buff[12];
     sprintf(buff, "%d", i);
     char* msgs[2] = {"No item at index ", buff};
-    return sl_d_exception_new(2, msgs);
+    return (sl_d_obj_t*)sl_d_exception_new(2, msgs);
   } else {
     sl_d_obj_t* old_val = item->value;
     item->value = obj;

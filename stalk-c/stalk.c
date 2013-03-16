@@ -12,10 +12,10 @@
 #include "symbol.h"
 #include "bootstrap.h"
 
+
+
 #include "parse.tab.h"
 #include "stalk.yy.h"
-
-
 
 
 // void test(char *s) {
@@ -136,7 +136,7 @@ int main(int argc, char *argv[]) {
   char* source = sl_read_source_file(filename);
   
   sl_s_expr_t* head;
-  yydebug = 1;
+  yydebug = 0;
   
   
   yyscan_t scanner;
@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
   yylex_init(&scanner);
   buffer = yy_scan_string(source, scanner);
   
-  yyparse(&head, scanner);
+  yyparse(&head, scanner, filename);
   
   // sl_parse(scanner, head);
   
@@ -154,7 +154,10 @@ int main(int argc, char *argv[]) {
   
   sl_d_scope_t* root = sl_d_scope_new();
   
-  sl_s_eval(head, root);
+  sl_d_obj_t* ret = sl_s_eval(head, root);
+  if(ret->type == SL_DATA_EXCEPTION) {
+    sl_i_exception_print((sl_d_exception_t*)ret);
+  }
   
   
   return 0;

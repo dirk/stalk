@@ -58,6 +58,8 @@ typedef struct sl_d_obj {
   SL_OBJ_HEADER;
 } sl_d_obj_t;
 
+
+
 typedef struct sl_i_return {
   SL_OBJ_HEADER;
   sl_d_obj_t* value;
@@ -147,6 +149,26 @@ typedef struct sl_d_string {
   char* value;
 } sl_d_string_t;
 
+
+typedef struct sl_i_traceback_frame {
+  struct sl_i_traceback_frame* prev;
+  struct sl_i_traceback_frame* next;
+  sl_d_sym_t* signature;// Method signature of current frame.
+  char* source;// cstring for the source of the frame's definition.
+  // source defaults to "<none>".
+  int line;// Line number of current frame in the source (default = 0)
+} sl_i_traceback_frame_t;
+
+typedef struct sl_i_traceback {
+  sl_i_traceback_frame_t* head;
+  sl_i_traceback_frame_t* tail;
+} sl_i_traceback_t;
+
+typedef struct sl_d_exception {
+  SL_OBJ_HEADER;
+  sl_i_traceback_t* traceback;
+} sl_d_exception_t;
+
 // FUNCTIONS ------------------------------------------------------------------
 
 void sl_d_bootstrap();
@@ -210,6 +232,11 @@ void sl_d_int_free(sl_d_int_t* arr);
 sl_d_float_t* sl_d_float_new(float value);
 void sl_d_float_free(sl_d_float_t* arr);
 
-sl_d_obj_t* sl_d_exception_new(int count, char** strings);
+sl_d_exception_t* sl_d_exception_new(int count, char** strings);
+void sl_i_exception_print(sl_d_exception_t* e);
+
+sl_i_traceback_t* sl_d_traceback_new();
+sl_i_traceback_frame_t* sl_d_traceback_frame_new();
+void sl_d_traceback_push_frame(sl_i_traceback_t* t, sl_i_traceback_frame_t* tf);
 
 #endif

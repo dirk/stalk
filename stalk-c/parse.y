@@ -10,26 +10,29 @@
 typedef void* yyscan_t;
 #endif
 
-#ifndef YYLTYPE_IS_DECLARED
-#define YYLTYPE_IS_DECLARED
-typedef struct YYLTYPE {
-  char yydummy;
-} YYLTYPE;
-#endif;
-
 extern int yylex();
 extern int yyparse();
-void yyerror(sl_s_expr_t **head, yyscan_t scanner, const char *err);
+void yyerror(YYLTYPE* loc, sl_s_expr_t **head, yyscan_t scanner, char* source, const char *err);
 extern int yylineno_extern;
 
 // %glr-parser
 %}
 
+%code requires {
+#ifndef YY_TYPEDEF_YY_SCANNER_T
+#define YY_TYPEDEF_YY_SCANNER_T
+typedef void* yyscan_t;
+#endif
 
+#define SOURCE(a) a->source = source; a->line = (yylloc.first_line + 1);
+}
+
+%locations
 %pure-parser
 %lex-param { yyscan_t scanner }
 %parse-param { sl_s_expr_t **head }
 %parse-param { yyscan_t scanner }
+%parse-param { char* source }
 
 %error-verbose
 
@@ -153,6 +156,7 @@ message: SL_T_DEF {
   sl_s_sym_t* def = sl_s_sym_new();
   def->value = "def:";
   msg->head = (sl_s_base_t*)def;
+  SOURCE(msg);
   $$ = msg;
 };
 message: keyword_pair {
@@ -160,6 +164,7 @@ message: keyword_pair {
   sl_s_message_t* msg = sl_s_message_new();
   msg->head = (sl_s_base_t*)head;
   msg->keyword = true;
+  SOURCE(msg);
   $$ = msg;
 };
 message: ident SL_T_ASSIGN subexpr {
@@ -178,7 +183,7 @@ message: ident SL_T_ASSIGN subexpr {
   value->prev = ident;
   
   msg->head = (sl_s_base_t*)assign;
-  
+  SOURCE(msg);
   $$ = msg;
 };
 message: SL_T_OPERATOR subexpr {
@@ -192,12 +197,14 @@ message: SL_T_OPERATOR subexpr {
   
   sl_s_message_t* msg = sl_s_message_new();
   msg->head = (sl_s_base_t*)op;
+  SOURCE(msg);
   $$ = msg;
 };
 message: subexpr {
   sl_s_message_t* msg = sl_s_message_new();
   sl_s_base_t* sub = $1;
   msg->head = sub;
+  SOURCE(msg);
   $$ = msg;
 }
 
@@ -277,6 +284,6 @@ ident: SL_T_IDENT {
 
 %%
 
-void yyerror(sl_s_expr_t **head, yyscan_t scanner, const char *err) {
-  DEBUG("Parse error on line %d: %s", yylineno_extern, err);
+void yyerror(YYLTYPE* loc, sl_s_expr_t **head, yyscan_t scanner, char* source, const char *err) {
+  DEBUG("Parse error in %s on line %d: %s", source, yylineno_extern, err);
 }

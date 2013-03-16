@@ -1,13 +1,15 @@
 %{
 #include <string.h>
 #include "stalk.h"
-#include "parse.tab.h"
 #include "syntax.h"
+#include "parse.tab.h"
+
 
 #define SAVE_STRING yylval->p_string = strdup(yytext);
 
 int yylineno_extern = 1;
-#define YY_USER_ACTION yylineno_extern = yylineno;
+//#define YY_USER_ACTION yylineno_extern = yylineno;
+#define YY_USER_ACTION yylineno_extern = yylloc->first_line = yylloc->last_line = yylineno;
 %}
 
 %option header-file="stalk.yy.h"
@@ -17,7 +19,8 @@ int yylineno_extern = 1;
 %option nounput
 %option warn
 %option never-interactive
-%option bison-bridge
+%option bison-bridge bison-locations
+
 
 integer     -?0|([1-9][0-9]*)
 fractional  \.[0-9]+
@@ -27,7 +30,7 @@ comment     [ \t]*#[^\n]*
 %%
 ^[ \t]*           { }
 [ \t]+$           { }
-[ \t\n]*"#"[^\n]*[ \t\n]* { fprintf(stderr, "removing: '%s'", strdup(yytext)); }
+[ \t\n]*"#"[^\n]*[ \t\n]* { /*fprintf(stderr, "removing: '%s'", strdup(yytext));*/ }
 
 {integer}{fractional} {
   yylval->p_float = atof(yytext);

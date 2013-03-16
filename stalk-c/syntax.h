@@ -22,7 +22,8 @@ typedef unsigned char sl_message_type;
 #define SL_SYNTAX_TYPE sl_syntax_type type;
 #define SL_SYNTAX_LINENO int lineno;
 #define SL_SYNTAX_LINKS void *next; void *prev;
-#define SL_SYNTAX_HEADER SL_SYNTAX_TYPE SL_SYNTAX_LINENO SL_SYNTAX_LINKS
+#define SL_SYNTAX_SOURCE char* source; int line;
+#define SL_SYNTAX_HEADER SL_SYNTAX_TYPE SL_SYNTAX_LINENO SL_SYNTAX_LINKS SL_SYNTAX_SOURCE
 
 typedef struct sl_s_base {
   SL_SYNTAX_HEADER;
@@ -136,6 +137,7 @@ void sl_s_sym_free(sl_s_sym_t* s);
 
 void* sl_s_eval(void* _s, void* scope);
 void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope);
+void* sl_s_int_eval(sl_s_int_t* s, void* scope);
 void* sl_s_string_eval(sl_s_string_t* s, void* scope);
 
 #endif

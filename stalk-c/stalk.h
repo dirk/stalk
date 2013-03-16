@@ -14,8 +14,12 @@
 // Whether to debug the syntax tree interpreter
 #ifdef SYN_DEBUG
 #define SL_SYN_DEBUG(M, ...) fprintf(stderr, "[SYN] %*s" M "\n", __depth, "", ##__VA_ARGS__)
+#define SL_SYN_DEBUG_LEAVE __depth -= 1;
+#define SL_SYN_DEBUG_ENTER __depth += 1;
 #else
 #define SL_SYN_DEBUG(M, ...)
+#define SL_SYN_DEBUG_LEAVE
+#define SL_SYN_DEBUG_ENTER
 #endif
 
 typedef int bool;

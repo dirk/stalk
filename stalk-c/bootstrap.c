@@ -38,7 +38,7 @@ SL_I_METHOD_F(object_return) {//args: self, params
   sl_d_obj_t* obj = (sl_d_obj_t*)sl_d_array_index(params, 0);
   if(obj == NULL) {
     char* msgs[1] = {"Missing argument 1 to return:"};
-    return sl_d_exception_new(1, msgs);
+    return (sl_d_obj_t*)sl_d_exception_new(1, msgs);
   }
   // DEBUG("ret obj val  = %d", ((sl_d_int_t*)obj)->value);
   return (sl_d_obj_t*)sl_i_return_new(obj);
@@ -52,13 +52,13 @@ SL_I_METHOD_F(object_slot_set) {//args: self, params
     char buff[4];
     sprintf(buff, "%d", sym->type);
     char* msgs[2] = {"Argument 1 must be a symbol; currently = ", buff};
-    return sl_d_exception_new(2, msgs);
+    return (sl_d_obj_t*)sl_d_exception_new(2, msgs);
   }
   // arg 2: object to set to slot
   sl_d_obj_t* obj = (sl_d_obj_t*)sl_d_array_index(params, 1);
   if(obj == NULL) {
     char* msgs[1] = {"Missing argument 2"};
-    return sl_d_exception_new(1, msgs);
+    return (sl_d_obj_t*)sl_d_exception_new(1, msgs);
   }
   // DEBUG("setting slot %s = %p", sym->value, obj);
   sl_d_obj_set_slot(self, sym, (sl_d_obj_t*)obj);
@@ -72,12 +72,12 @@ SL_I_METHOD_F(object_methodto) {//args: self, params
     char buff[4];
     sprintf(buff, "%d", sym->type);
     char* msgs[2] = {"Argument 1 must be a symbol; currently = ", buff};
-    return sl_d_exception_new(2, msgs);
+    return (sl_d_obj_t*)sl_d_exception_new(2, msgs);
   }
   sl_d_method_t* meth = (sl_d_method_t*)sl_d_array_index(params, 1);
   if(meth == NULL || meth->type != SL_DATA_METHOD) {
     char* msgs[1] = {"Argument 2 must be a method"};
-    return sl_d_exception_new(1, msgs);
+    return (sl_d_obj_t*)sl_d_exception_new(1, msgs);
   }
   // DEBUG("set slot %p %p (%s) %p", self, sym, sym->value, meth);
   sl_d_obj_set_slot(self, sym, (sl_d_obj_t*)meth);
@@ -99,11 +99,11 @@ SL_I_METHOD_F(string_add) {//args: self, params
   sl_d_obj_t* other = (sl_d_obj_t*)sl_d_array_index(params, 0);
   if(other == NULL) {
     char* msgs[1] = {"Missing argument 1"};
-    return sl_d_exception_new(1, msgs);
+    return (sl_d_obj_t*)sl_d_exception_new(1, msgs);
   }
   if(other->type != SL_DATA_STRING) {
     char* msgs[1] = {"Argument 1 must be a string"};
-    return sl_d_exception_new(1, msgs);
+    return (sl_d_obj_t*)sl_d_exception_new(1, msgs);
   }
   sl_d_string_t* _self  = (sl_d_string_t*)self;
   sl_d_string_t* _other = (sl_d_string_t*)other;
@@ -137,11 +137,11 @@ SL_I_METHOD_F(int_string) {//args: self, params
 static inline sl_d_obj_t* guard_int(sl_d_obj_t* val) {
   if(val == NULL) {
     char* msgs[1] = {"Missing argument 1"};
-    return sl_d_exception_new(1, msgs);
+    return (sl_d_obj_t*)sl_d_exception_new(1, msgs);
   }
   if(val->type != SL_DATA_INT) {
     char* msgs[1] = {"Argument 1 must be a string"};
-    return sl_d_exception_new(1, msgs);
+    return (sl_d_obj_t*)sl_d_exception_new(1, msgs);
   }
   return NULL;
 }

@@ -36,4 +36,13 @@ typedef void* sl_p_void;
 void sl_parse(yyscan_t scanner);
 */
 
+#define YYLTYPE_IS_DECLARED
+typedef struct YYLTYPE {
+  int first_line;
+  int first_column;
+  int last_line;
+  int last_column;
+} YYLTYPE;
+
+
 #endif
