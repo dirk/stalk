@@ -5,7 +5,9 @@ LDFLAGS=-lfl
 LEX=flex
 LFLAGS=
 
-PARSE=bison
+
+# PARSE=bison
+PARSE=/usr/local/Cellar/bison/2.7/bin/bison
 
 # SOURCES=types.c system.c stalk.c
 SOURCES=symbol.c data.c syntax.c stalk.yy.c parse.tab.c bootstrap.c stalk.c
@@ -39,3 +41,6 @@ stalk.yy.c: stalk.l
 
 clean:
 	rm -rf *.o $(EXECUTABLE) $(EXDIR)/$(EXECUTABLE)
+
+graph:
+	$(PARSE) --graph=parse.dot -d -o parse.tab.c parse.y
