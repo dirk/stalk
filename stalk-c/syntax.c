@@ -177,7 +177,7 @@ static inline void* sl_s_messages_eval(
   void* scope
 ) {
   __depth += 1;
-  fprintf(stderr, "%*s sl_s_messages_eval\n", __depth, "");
+  SL_SYN_DEBUG("sl_s_messages_eval");
   
   sl_d_obj_t* prev_target;
   sl_s_message_t* message = messages;
@@ -224,7 +224,7 @@ error:
 
 void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope) {
   __depth += 1;
-  fprintf(stderr, "%*s sl_s_expr_eval\n", __depth, "");
+  SL_SYN_DEBUG("sl_s_expr_eval");
   
   sl_d_obj_t* ret = NULL;
   
@@ -380,8 +380,7 @@ static inline void* sl_i_message_def_extract(sl_s_message_t* def_msg) {
 // Extract a sl_d_sym_t/exception.
 static inline sl_d_obj_t* sl_i_message_param_extract(sl_s_base_t* param) {
   __depth += 1;
-  
-  fprintf(stderr, "%*s sl_i_message_param_extract type: %d\n", __depth, "", param->type);
+  SL_SYN_DEBUG("sl_i_message_param_extract");
   
   if(param->type == 1) {
     sl_s_sym_t* ps = (sl_s_sym_t*)param;
@@ -417,7 +416,7 @@ static inline sl_d_obj_t* sl_i_message_eval_def(sl_s_message_t* msg, void* scope
   sl_s_message_t* def_msg = msg;
   // sl_s_sym_t*     def_sym = (sl_s_sym_t*)msg->head;
   
-  fprintf(stderr, "%*s sl_s_messages_eval_def\n", __depth, "");
+  SL_SYN_DEBUG("sl_s_messages_eval_def");
   
   sl_d_array_t* params_d = sl_d_array_new();
   
@@ -521,7 +520,7 @@ static inline void* sl_i_message_eval_keyword(sl_s_message_t* m, void* scope) {
   sl_d_array_t* args = sl_d_array_new();
   
   __depth += 1;
-  fprintf(stderr, "%*s sl_i_message_eval_keyword\n", __depth, "");
+  SL_SYN_DEBUG("sl_i_message_eval_keyword");
   
   if(m->hint != NULL && m->hint_args != NULL) {
     sl_d_message_t* msg = (sl_d_message_t*)m->hint;
@@ -591,9 +590,8 @@ static inline void* sl_i_message_eval_keyword(sl_s_message_t* m, void* scope) {
 }
 
 static inline void* sl_i_message_eval_plain(sl_s_message_t* m, void* scope) {
-  fprintf(stderr, "%*s sl_i_message_eval_plain\n", __depth + 1, "");
-  
   __depth += 1;
+  SL_SYN_DEBUG("sl_i_message_eval_plain");
   
   sl_s_sym_t* head = (sl_s_sym_t*)m->head;
   if(head->keyword) {
@@ -619,13 +617,14 @@ static inline void* sl_i_message_eval_plain(sl_s_message_t* m, void* scope) {
 }
 
 static inline void* sl_i_message_eval_assign(sl_s_message_t* m, void* scope) {
-  fprintf(stderr, "%*s sl_i_message_eval_assign\n", __depth + 1, "");
+  __depth += 1;
+  SL_SYN_DEBUG("sl_i_message_eval_assign");
   
   sl_s_sym_t*  assign_s = (sl_s_sym_t*)m->head;
-  DEBUG("assign type = %d", assign_s->type);
-  DEBUG("assign next = %p", assign_s->next);
+  // DEBUG("assign type = %d", assign_s->type);
+  // DEBUG("assign next = %p", assign_s->next);
   sl_s_sym_t*  slot_s   = (sl_s_sym_t*)assign_s->next;
-  DEBUG("slot type   = %d", slot_s->type);
+  // DEBUG("slot type   = %d", slot_s->type);
   sl_s_expr_t* val_s    = (sl_s_expr_t*)slot_s->next;
   
   sl_d_obj_t*  slot_val   = sl_s_eval(val_s, scope);
@@ -635,8 +634,10 @@ static inline void* sl_i_message_eval_assign(sl_s_message_t* m, void* scope) {
     sl_d_message_t* msg = m->hint;
     sl_d_obj_t* ret = sl_d_array_index_set(msg->arguments, 1, slot_val);
     if(ret->type == SL_DATA_EXCEPTION) {
+      __depth -= 1;
       return ret;
     }
+    __depth -= 1;
     return m->hint;
   }
   
@@ -651,6 +652,8 @@ static inline void* sl_i_message_eval_assign(sl_s_message_t* m, void* scope) {
   msg->arguments = args;
   
   m->hint = msg;
+  
+  __depth -= 1;
   return msg;
 }
 
@@ -660,15 +663,18 @@ static inline void* sl_i_message_eval_operator(sl_s_message_t* m, void* scope) {
   
   sl_d_obj_t*  val        = sl_s_eval(val_s, scope);
   
-  fprintf(stderr, "%*s sl_i_message_eval_operator val->type: %d\n", __depth + 1, "", val->type);
+  __depth += 1;
+  SL_SYN_DEBUG("sl_i_message_eval_operator (val->type = %d)", val->type);
   
   if(m->hint != NULL) {
     // Used the cached message object and just update the second argument.
     sl_d_message_t* msg = m->hint;
     sl_d_obj_t* ret = sl_d_array_index_set(msg->arguments, 0, val);
     if(ret->type == SL_DATA_EXCEPTION) {
+      __depth -= 1;
       return ret;
     }
+    __depth -= 1;
     return m->hint;
   }
   
@@ -681,10 +687,14 @@ static inline void* sl_i_message_eval_operator(sl_s_message_t* m, void* scope) {
   msg->arguments = args;
   
   m->hint = msg;
+  
+  __depth -= 1;
   return msg;
 }
 
 static inline void* sl_s_message_eval(sl_s_message_t* m, void* scope) {
+  SL_SYN_DEBUG("sl_s_message_eval");
+  
   // TODO: Hook these into bootstrap
   static sl_d_sym_t* def_sym = NULL;
   if(def_sym == NULL) { def_sym = sl_d_sym_new("def:"); }
@@ -750,7 +760,7 @@ inline void* sl_s_string_eval(sl_s_string_t* s, void* scope) {
 }
 
 void* sl_s_eval(void* _s, void* scope) {
-  fprintf(stderr, "%*s sl_s_eval\n", __depth, "");
+  SL_SYN_DEBUG("sl_s_eval");
   
   // Cast it into the base struct
   sl_s_base_t* s = _s;

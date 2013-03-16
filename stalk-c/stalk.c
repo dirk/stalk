@@ -65,7 +65,7 @@ void test() {
 */
 
 extern int yyparse();
-// extern int yydebug;
+extern int yydebug;
 
 unsigned int file_size(const char* filename) {
   struct stat s;
@@ -136,7 +136,7 @@ int main(int argc, char *argv[]) {
   char* source = sl_read_source_file(filename);
   
   sl_s_expr_t* head;
-  // yydebug = 1;
+  yydebug = 1;
   
   
   yyscan_t scanner;
