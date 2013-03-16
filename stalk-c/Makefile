@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-g -Wall -c -std=c99 -DHASH_FUNCTION=HASH_FNV
-LDFLAGS=
+LDFLAGS=-lfl
 
 LEX=flex
 LFLAGS=

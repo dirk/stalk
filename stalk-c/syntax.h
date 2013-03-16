@@ -17,6 +17,7 @@ typedef unsigned char sl_message_type;
 #define SL_SYNTAX_MESSAGE 8
 #define SL_SYNTAX_ASSIGN  9
 #define SL_SYNTAX_DEF     10
+#define SL_SYNTAX_KEYWORD 11
 
 #define SL_SYNTAX_TYPE sl_syntax_type type;
 #define SL_SYNTAX_LINENO int lineno;
@@ -30,20 +31,26 @@ typedef struct sl_s_base {
 typedef struct sl_s_message {
   SL_SYNTAX_HEADER;
   sl_s_base_t* head;
-  // If it's a def:, then hint = sl_d_message_t.
-  void* hint;
+  bool keyword;
+  void*  hint;//sl_d_message_t
+  void*  hint_args;// Pointer to the next message after the first
+  
 } sl_s_message_t;
 
 typedef struct sl_s_expr {
   SL_SYNTAX_HEADER;
-  sl_s_base_t *target;// Target for evaluating messages
-  sl_s_message_t *messages;
+  // sl_s_base_t *target;// Target for evaluating messages
+  sl_s_base_t *head;
   // sl_s_base_t *tail;// End of inner expression
 } sl_s_expr_t;
 
 
 
-
+typedef struct sl_s_keyword {
+  SL_SYNTAX_HEADER;
+  char* value;//cstring
+  void* sym;//sl_d_sym_t
+} sl_s_keyword_t;
 
 typedef struct sl_s_sym {
   SL_SYNTAX_HEADER;
@@ -53,6 +60,7 @@ typedef struct sl_s_sym {
   bool assign;
   bool keyword;
   void* hint;//sl_d_sym_t
+  void* message_hint;//sl_d_message_t (used by sl_s_sym_eval)
 } sl_s_sym_t;
 
 
@@ -111,13 +119,14 @@ sl_s_message_t* sl_s_message_new();
 sl_s_int_t* sl_s_int_new();
 sl_s_float_t* sl_s_float_new();
 sl_s_string_t* sl_s_string_new();
+sl_s_keyword_t* sl_s_keyword_new();
 sl_s_sym_t* sl_s_sym_new();
 sl_s_assign_t* sl_s_assign_new();
 sl_s_def_t* sl_s_def_new();
 sl_s_block_t* sl_s_block_new();
 
 sl_s_expr_t* sl_s_expr_new();
-void sl_s_expr_unshift(sl_s_expr_t* expr, sl_s_message_t* s);
+void sl_s_expr_unshift(sl_s_expr_t* expr, sl_s_base_t* s);
 
 sl_s_message_t* sl_s_message_new();
 void sl_s_message_unshift(sl_s_message_t* message, sl_s_base_t* s);
@@ -127,5 +136,6 @@ void sl_s_sym_free(sl_s_sym_t* s);
 
 void* sl_s_eval(void* _s, void* scope);
 void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope);
+void* sl_s_string_eval(sl_s_string_t* s, void* scope);
 
 #endif

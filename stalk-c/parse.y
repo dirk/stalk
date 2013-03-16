@@ -33,31 +33,31 @@ extern int yylineno_extern;
 
 %union {
   char* p_string;
-  int p_int;
+  int   p_int;
   float p_float;
   void* p_node;
 }
 
-%token <p_string> SL_P_IDENT
-%token <p_int> SL_P_INTEGER
-%token <p_float> SL_P_DECIMAL
-%token <p_string> SL_P_STRING
-%token <p_string> SL_P_SYMBOL
-%token SL_P_COMMA
-%token SL_P_LBRACK
-%token SL_P_RBRACK
-%token SL_P_VERT
-%token SL_P_LPAREN
-%token SL_P_RPAREN
-%token SL_P_LSQ
-%token SL_P_RSQ
-%token SL_P_TERMINAL
-%token <p_string> SL_P_KEYWORD
-%token SL_P_SEP
-%token SL_P_COMMENT
-%token <p_string> SL_P_OPERATOR
-%token SL_P_DEF
-%token <p_string> SL_P_ASSIGN
+%token <p_string> SL_T_IDENT
+%token <p_int> SL_T_INTEGER
+%token <p_float> SL_T_DECIMAL
+%token <p_string> SL_T_STRING
+%token <p_string> SL_T_SYMBOL
+%token SL_T_COMMA
+%token SL_T_LBRACK
+%token SL_T_RBRACK
+%token SL_T_VERT
+%token SL_T_LPAREN
+%token SL_T_RPAREN
+%token SL_T_LSQ
+%token SL_T_RSQ
+%token SL_T_TERMINAL
+%token <p_string> SL_T_KEYWORD
+%token SL_T_SEP
+%token SL_T_COMMENT
+%token <p_string> SL_T_OPERATOR
+%token SL_T_DEF
+%token <p_string> SL_T_ASSIGN
 
 %type <p_node> main
 %type <p_node> plain_expr;
@@ -66,16 +66,14 @@ extern int yylineno_extern;
 %type <p_node> literal
 %type <p_node> ident
 %type <p_node> subexpr;
-%type <p_node> message
+%type <p_node> message;
 %type <p_node> messages
-%type <p_node> keywords
+%type <p_node> keywords;
 %type <p_node> keyword_pair;
 %type <p_node> block;
 %type <p_node> block_body;
 %type <p_node> block_body_inside;
 %type <p_node> block_inside;
-%type <p_node> target;
-
 
 %%
 main: exprs { /* DEBUG("main exprs = %p", $1); */ *head = $1; };
@@ -95,55 +93,39 @@ exprs: expr exprs {
 };
 exprs: expr { $$ = $1; };
 
-expr_terminal: SL_P_COMMENT SL_P_TERMINAL | SL_P_TERMINAL;
-
-plain_expr: target SL_P_SEP messages {
-  sl_s_message_t* m = $3;
-  sl_s_base_t* t = $1;
-  
-  sl_s_expr_t* e = sl_s_expr_new();
-  e->target = t;
-  e->messages = m;
-  $$ = e;
-}
-plain_expr: messages {
-  sl_s_message_t* m = $1;
-  sl_s_expr_t* e = sl_s_expr_new();
-  e->target = NULL;
-  e->messages = m;
-  $$ = e;
-}
-
 expr: plain_expr expr_terminal {
   $$ = $1;
 };
-expr: SL_P_COMMENT SL_P_TERMINAL { $$ = NULL; };
 
-target: literal { $$ = $1; };
-target: SL_P_LPAREN plain_expr SL_P_RPAREN { $$ = $2; };
-target: SL_P_LPAREN subexpr SL_P_RPAREN { $$ = $2; };
+plain_expr: messages {
+  sl_s_base_t* m = $1;
+  sl_s_expr_t* e = sl_s_expr_new();
+  e->head = m;
+  $$ = e;
+}
+expr_terminal: SL_T_TERMINAL;
 
 subexpr: literal { $$ = $1; }
        | ident { $$ = $1; }
        ;
-subexpr: SL_P_LPAREN plain_expr SL_P_RPAREN { $$ = $2; };
-subexpr: SL_P_LPAREN subexpr SL_P_RPAREN { $$ = $2; };
+subexpr: SL_T_LPAREN plain_expr SL_T_RPAREN { $$ = $2; };
+subexpr: SL_T_LPAREN subexpr SL_T_RPAREN { $$ = $2; };
 
 
-messages: message SL_P_SEP messages {
+messages: message SL_T_SEP messages {
   sl_s_message_t* left  = (sl_s_message_t*)$1;
   sl_s_message_t* right = (sl_s_message_t*)$3;
   if(left->type != SL_SYNTAX_MESSAGE) {
-    DEBUG("Left must be message (currently %d)", left->type);
+    LOG_ERR("Left must be message (currently %d)", left->type);
   }
   if(right->type != SL_SYNTAX_MESSAGE) {
-    DEBUG("Right must be message (currently %d)", right->type);
+    LOG_ERR("Right must be message (currently %d)", right->type);
   }
   if(left->head == NULL) {
-    DEBUG("Left head is null");
+    LOG_ERR("Left head is null");
   }
   if(right->head == NULL) {
-    DEBUG("Right head is null");
+    LOG_ERR("Right head is null");
   }
   left->next = right;
   right->prev = left;
@@ -152,92 +134,30 @@ messages: message SL_P_SEP messages {
 messages: message {
   sl_s_message_t* m = (sl_s_message_t*)$1;
   if(m->type != SL_SYNTAX_MESSAGE) {
-    DEBUG("Message must be message (currently %d)", m->type);
+    LOG_ERR("Message must be message (currently %d)", m->type);
   }
   if(m->head == NULL) {
-    DEBUG("Message head is null");
+    LOG_ERR("Message head is null");
   }
   $$ = m;
 };
-/*
-message types:
-sl_s_message_t;//calls (operator, message, assign, def)
-sl_s_expr_t;
 
-message heads:
-sl_s_sym_t;
-*/
-message: ident {
+message: keyword_pair {
+  sl_s_sym_t* head = $1;
   sl_s_message_t* msg = sl_s_message_new();
-  sl_s_base_t* ident = $1;
-  msg->head = ident;
-  $$ = msg;
-}
-message: SL_P_DEF SL_P_SEP message SL_P_SEP block {
-  sl_s_message_t* params = $3;
-  if(params->type != SL_SYNTAX_MESSAGE) {
-    yyerror(head, scanner, "Message must follow def:");
-    YYERROR;
-  }
-  
-  /* flatten message into sequence of symbols */
-  sl_s_base_t* part = (sl_s_base_t*)params->head;
-  while(part != NULL) {
-    if(part->type == SL_SYNTAX_EXPR) {
-      sl_s_expr_t* expr = (sl_s_expr_t*)part;
-      if(expr->target != NULL) {
-        yyerror(head, scanner, "Value in definition may not have target");
-        YYERROR;
-      }
-      sl_s_base_t* ident = expr->messages->head;
-      if(ident->type != SL_SYNTAX_SYM) {
-        yyerror(head, scanner, "Identifier must follow keyword in def:");
-        YYERROR;
-      } else {
-        sl_s_base_t* prev = (sl_s_base_t*)part->prev;
-        ident->prev = prev;
-        if(prev != NULL) {
-          prev->next = ident;
-        } else {
-          yyerror(head, scanner, "Previous is null in message symbol checker");
-          YYERROR;
-        }
-        
-        sl_s_base_t* next = (sl_s_base_t*)part->next;
-        ident->next = next;
-        if(next != NULL) {
-          next->prev = ident;
-        }
-        
-        sl_s_expr_free((sl_s_expr_t*)part);
-        part = ident;
-      }
-    } else if(part->type == SL_SYNTAX_SYM) {
-      // DEBUG("part sym = %p", part);
-      // pass
-    } else {
-      yyerror(head, scanner, "Unexpected value type in def:");
-      YYERROR;
-    }
-    part = part->next;
-  }
-  
-  sl_s_sym_t* def = sl_s_sym_new();
-  def->value = "def:";
-  sl_s_block_t* bl = $5;
-  
-  def->next    = params;
-  params->prev = def;
-  
-  params->next = bl;
-  bl->prev     = params;
-  
-  sl_s_message_t* msg = sl_s_message_new();
-  msg->head = (sl_s_base_t*)def;
-  
+  msg->head = (sl_s_base_t*)head;
+  msg->keyword = true;
   $$ = msg;
 };
-message: ident SL_P_SEP SL_P_ASSIGN SL_P_SEP subexpr {
+
+message: SL_T_DEF {
+  sl_s_message_t* msg = sl_s_message_new();
+  sl_s_sym_t* def = sl_s_sym_new();
+  def->value = "def:";
+  msg->head = (sl_s_base_t*)def;
+  $$ = msg;
+};
+message: ident SL_T_SEP SL_T_ASSIGN SL_T_SEP subexpr {
   sl_s_message_t* msg = sl_s_message_new();
   
   sl_s_sym_t* assign = sl_s_sym_new();
@@ -253,9 +173,11 @@ message: ident SL_P_SEP SL_P_ASSIGN SL_P_SEP subexpr {
   value->prev = ident;
   
   msg->head = (sl_s_base_t*)assign;
+  DEBUG("assign next = %p", assign->next);
+  
   $$ = msg;
 };
-message: SL_P_OPERATOR SL_P_SEP subexpr {
+message: SL_T_OPERATOR SL_T_SEP subexpr {
   sl_s_sym_t* op = sl_s_sym_new();
   op->value = $1;
   op->operator = true;
@@ -268,19 +190,19 @@ message: SL_P_OPERATOR SL_P_SEP subexpr {
   msg->head = (sl_s_base_t*)op;
   $$ = msg;
 };
-message: keywords {
-  sl_s_sym_t* head = $1;
+message: subexpr {
   sl_s_message_t* msg = sl_s_message_new();
-  msg->head = (sl_s_base_t*)head;
+  sl_s_base_t* sub = $1;
+  msg->head = sub;
   $$ = msg;
-};
+}
 
 
 
 /* Keywords generates a regular list just like any other expression but it also
 verifies the correctness of the syntax ahead of time so we can interpret faster
 later on. */
-keywords: keyword_pair SL_P_SEP keywords {
+keywords: keyword_pair SL_T_SEP keywords {
   sl_s_sym_t* left = $1;
   sl_s_sym_t* right = $3;
   sl_s_expr_t* left_value = left->next;
@@ -290,7 +212,7 @@ keywords: keyword_pair SL_P_SEP keywords {
 };
 keywords: keyword_pair { $$ = $1; };
 
-keyword_pair: SL_P_KEYWORD SL_P_SEP subexpr {
+keyword_pair: SL_T_KEYWORD SL_T_SEP subexpr {
   sl_s_sym_t* kw = sl_s_sym_new();
   kw->value = $1;
   kw->keyword = true;
@@ -301,36 +223,39 @@ keyword_pair: SL_P_KEYWORD SL_P_SEP subexpr {
   $$ = kw;
 };
 
-literal: SL_P_INTEGER {
+literal: SL_T_INTEGER {
   sl_s_int_t* s = sl_s_int_new();
   s->value = $1;
   $$ = s;
 };
-literal: SL_P_DECIMAL {
+literal: SL_T_DECIMAL {
   sl_s_float_t* s = sl_s_float_new();
   s->value = $1;
   $$ = s;
 };
-literal: SL_P_STRING {
+literal: SL_T_STRING {
   sl_s_string_t* s = sl_s_string_new();
-  s->value = $1;
+  const char* str = $1;
+  int len = strlen(str);
+  s->value = strndup(&str[1], len - 2);
   $$ = s;
 };
-literal: SL_P_SYMBOL {
+literal: SL_T_SYMBOL {
   sl_s_sym_t* s = sl_s_sym_new();
+  s->literal = true;
   s->value = $1;
   $$ = s;
 };
 
-literal: block { $$ = NULL; };
+literal: block { $$ = $1; };
 literal: array { $$ = NULL; };
 
-array: SL_P_LSQ array_inside SL_P_RSQ;
-array: SL_P_LSQ SL_P_RSQ;
-array_inside: subexpr SL_P_COMMA array_inside;
+array: SL_T_LSQ array_inside SL_T_RSQ;
+array: SL_T_LSQ SL_T_RSQ;
+array_inside: subexpr SL_T_COMMA array_inside;
 array_inside: subexpr;
 
-block: SL_P_LBRACK block_inside SL_P_RBRACK {
+block: SL_T_LBRACK block_inside SL_T_RBRACK {
   sl_s_block_t* b = sl_s_block_new();
   sl_s_expr_t* head = $2;
   b->head = head;
@@ -338,8 +263,8 @@ block: SL_P_LBRACK block_inside SL_P_RBRACK {
 };
 block_inside: block_header block_body { $$ = $2 };
 block_inside: block_body { $$ = $1 };
-block_header: SL_P_VERT block_header_inside SL_P_VERT;
-block_header_inside: ident SL_P_COMMA block_header_inside;
+block_header: SL_T_VERT block_header_inside SL_T_VERT;
+block_header_inside: ident SL_T_COMMA block_header_inside;
 block_header_inside: ident;
 
 block_body: block_body_inside { $$ = $1; };
@@ -355,10 +280,9 @@ block_body_inside: exprs plain_expr {
   right->prev = left;
   $$ = left;
 };
-block_body_inside: exprs { $$ = $1; };
 block_body_inside: plain_expr { $$ = $1; };
 
-ident: SL_P_IDENT {
+ident: SL_T_IDENT {
   sl_s_sym_t* s = sl_s_sym_new();
   s->value = $1;
   $$ = s;
