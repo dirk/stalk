@@ -41,7 +41,8 @@ typedef unsigned char sl_data_type;
 
 #define SL_DATA_EXTERN extern sl_d_obj_t* sl_d_null; \
                        extern sl_d_obj_t* sl_i_root_object; \
-                       extern sl_d_obj_t* sl_i_root_string;
+                       extern sl_d_obj_t* sl_i_root_string; \
+                       extern sl_d_obj_t* sl_i_root_int;
 
 typedef unsigned int sl_scope_item_id;
 
@@ -70,6 +71,11 @@ typedef struct sl_d_int {
   SL_OBJ_HEADER;
   int value;
 } sl_d_int_t;
+
+typedef struct sl_d_float {
+  SL_OBJ_HEADER;
+  float value;
+} sl_d_float_t;
 
 typedef struct sl_d_sym {
   SL_OBJ_HEADER;
@@ -145,6 +151,8 @@ typedef struct sl_d_string {
 
 void sl_d_bootstrap();
 
+char* sl_d_type_string_padded(int type);
+
 sl_d_obj_t* sl_d_obj_new();
 sl_obj_id sl_obj_next_id();
 void* sl_d_gen_obj_new(sl_data_type type, size_t size);
@@ -160,6 +168,7 @@ sl_d_sym_t* sl_d_sym_new(char* name);
 void sl_d_sym_free(sl_d_sym_t* sym);
 
 sl_i_return_t* sl_i_return_new(sl_d_obj_t* value);
+sl_d_obj_t* sl_i_return_unwrap(sl_d_obj_t* ret);
 
 sl_d_method_t* sl_d_method_new();
 sl_d_obj_t* sl_d_method_call(
@@ -167,10 +176,18 @@ sl_d_obj_t* sl_d_method_call(
   sl_d_obj_t* self,
   sl_d_array_t* args
 );
+void sl_d_method_free(sl_d_method_t* m);
 
 sl_d_message_t* sl_d_message_new();
+void sl_d_message_empty(sl_d_message_t* m);
+void sl_d_message_free(sl_d_message_t* m);
 
 sl_d_block_t* sl_d_block_new();
+sl_d_obj_t* sl_d_block_call(
+  sl_d_block_t* block,
+  sl_d_scope_t* scope,
+  sl_d_array_t* params
+);
 
 sl_d_scope_t* sl_d_scope_new();
 void sl_d_scope_free(sl_d_scope_t* s);
@@ -187,8 +204,11 @@ sl_i_array_item_t* sl_d_array_first_item(sl_d_array_t* arr);
 sl_i_array_item_t* sl_d_array_next_item(sl_d_array_t* arr, sl_i_array_item_t* i);
 sl_d_obj_t* sl_d_array_index_set(sl_d_array_t* arr, int i, sl_d_obj_t* obj);
 
-sl_d_int_t* sl_d_int_new();
+sl_d_int_t* sl_d_int_new(int value);
 void sl_d_int_free(sl_d_int_t* arr);
+
+sl_d_float_t* sl_d_float_new(float value);
+void sl_d_float_free(sl_d_float_t* arr);
 
 sl_d_obj_t* sl_d_exception_new(int count, char** strings);
 

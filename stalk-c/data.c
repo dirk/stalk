@@ -26,6 +26,8 @@ sl_d_obj_t* sl_d_null = NULL;
 // Global immutable root objects.
 sl_d_obj_t* sl_i_root_object = NULL;
 sl_d_obj_t* sl_i_root_string = NULL;
+sl_d_obj_t* sl_i_root_int    = NULL;
+sl_d_obj_t* sl_i_root_float  = NULL;
 
 // OBJECTS --------------------------------------------------------------------
 
@@ -39,14 +41,15 @@ sl_d_obj_t* sl_d_obj_new() {
 // Generic object creation with given type and size.
 // Sets type, id, parent, refcount, methods, and values attributes.
 void* sl_d_gen_obj_new(sl_data_type type, size_t size) {
-  sl_d_obj_t* o = malloc(size);
-  assert(o != NULL);
-  o->type     = type;
-  o->id       = sl_obj_next_id();
-  o->parent   = sl_i_root_object;
-  o->refcount = 1;
-  o->slots    = NULL;
-  return o;
+  sl_d_obj_t* obj = malloc(size);
+  assert(obj != NULL);
+  obj->type     = type;
+  obj->id       = sl_obj_next_id();
+  obj->parent   = sl_i_root_object;
+  obj->refcount = 1;
+  obj->slots    = NULL;
+  SL_GC_DEBUG("NEW     %-4d %5d %s", obj->refcount, obj->id, sl_d_type_string_padded(obj->type));
+  return obj;
 }
 
 // Thread-safe object id generation.
@@ -59,6 +62,39 @@ sl_obj_id sl_obj_next_id() {
   return id;
 }
 
+
+char* sl_d_type_string_padded(int type) {
+  switch(type) {
+    case SL_DATA_OBJ:
+      return "OBJ      ";
+    case SL_DATA_SYM:
+      return "SYM      ";
+    case SL_DATA_SCOPE:
+      return "SCOPE    ";
+    case SL_DATA_ARRAY:
+      return "ARRAY    ";
+    case SL_DATA_METHOD:
+      return "METHOD   ";
+    case SL_DATA_INT:
+      return "INT      ";
+    case SL_DATA_MESSAGE:
+      return "MESSAGE  ";
+    case SL_DATA_BLOCK:
+      return "BLOCK    ";
+    case SL_DATA_NULL:
+      return "NULL     ";
+    case SL_DATA_EXCEPTION:
+      return "EXCEPTION";
+    case SL_DATA_STRING:
+      return "STRING   ";
+    case SL_DATA_RETURN:
+      return "RETURN   ";
+    default:
+      LOG_ERR("Shouldn't reach here");
+      return "         ";
+  }
+}
+
 // OBJECT MEMORY MANAGEMENT ---------------------------------------------------
 
 // Predefining before retain-release
@@ -66,9 +102,11 @@ static inline void sl_d_obj_free(sl_d_obj_t* obj);
 
 void sl_d_obj_retain(sl_d_obj_t* obj) {
   obj->refcount += 1;
+  SL_GC_DEBUG("RETAIN  %-4d %5d %s", obj->refcount, obj->id, sl_d_type_string_padded(obj->type));
 }
 bool sl_d_obj_release(sl_d_obj_t* obj) {
   obj->refcount -= 1;
+  SL_GC_DEBUG("RELEASE %-4d %5d %s", obj->refcount, obj->id, sl_d_type_string_padded(obj->type));
   if(obj->refcount != 0) {
     return false;
   }
@@ -86,7 +124,7 @@ static inline void sl_d_obj_free(sl_d_obj_t* obj) {
     HASH_ITER(hh, obj->slots, current_item, tmp_item) {
       HASH_DEL(obj->slots, current_item);
       if(current_item->value != NULL) {
-        sl_d_obj_free((sl_d_obj_t*)current_item->value);
+        sl_d_obj_release((sl_d_obj_t*)current_item->value);
       }
       free(current_item);
     }
@@ -109,6 +147,12 @@ static inline void sl_d_obj_free(sl_d_obj_t* obj) {
   case SL_DATA_STRING:
     sl_d_string_free((sl_d_string_t*)obj);
     break;
+  case SL_DATA_METHOD:
+    sl_d_method_free((sl_d_method_t*)obj);
+    break;
+  case SL_DATA_SCOPE:
+    sl_d_scope_free((sl_d_scope_t*)obj);
+    break;
   default:
     LOG_ERR("Unexpected data type: %d", obj->type);
   }
@@ -122,11 +166,14 @@ sl_d_obj_t* sl_d_obj_get(sl_d_obj_t* obj, sl_d_sym_t* slot) {
     if(obj->parent == NULL) {
       return SL_D_NULL;
     } else {
-      return sl_d_obj_get(obj->parent, slot);
+      value = sl_d_obj_get(obj->parent, slot);
     }
-  } else {
-    return value;
   }
+  if(value == NULL) { return SL_D_NULL; }
+  
+  // DEBUG("got slot %s", slot->value);
+  
+  return value;
 }
 void sl_d_obj_set_slot(sl_d_obj_t* obj, sl_d_sym_t* name, sl_d_obj_t* val) {
   // DEBUG("set slot on %p: %s = %p", obj, name->value, val);
@@ -156,15 +203,6 @@ sl_d_obj_t* sl_d_obj_get_slot(sl_d_obj_t* obj, sl_d_sym_t* name) {
   } else {
     return val->value;
   }
-}
-
-sl_d_obj_t* sl_d_block_call(
-  sl_d_block_t* block,
-  sl_d_scope_t* scope,
-  sl_d_array_t* params
-) {
-  scope->parent = block->closure;
-  return sl_s_expr_eval(block->expr, scope);
 }
 
 // EXCEPTIONS -----------------------------------------------------------------
@@ -205,24 +243,22 @@ sl_d_obj_t* sl_d_exception_new(int count, char** strings) {
 
 sl_d_obj_t* sl_d_obj_send(sl_d_obj_t* target, sl_d_message_t* msg) {
   sl_d_sym_t* sig;
+  sl_d_obj_t* slot = sl_d_obj_get(target, msg->signature);
   
-  sl_d_method_t* slot = (sl_d_method_t*)sl_d_obj_get(target, msg->signature);
-  if(slot == (sl_d_method_t*)SL_D_NULL) {
+  if(slot == SL_D_NULL) {
     goto not_found;
   }
   if(slot->type == SL_DATA_METHOD) {
-    if(slot->hint != NULL) {
-      return slot->hint(target, msg->arguments);
+    sl_d_method_t* method = (sl_d_method_t*)slot;
+    if(method->hint != NULL) {
+      return method->hint(target, msg->arguments);
     } else {
-      return sl_d_method_call(slot, target, msg->arguments);
-      // DEBUG("name = %s", msg->signature->value);
-      // SENTINEL("NOT IMPLEMENTED");
+      return sl_d_method_call(method, target, msg->arguments);
     }
   } else {
     // Just a regular value from a slot
     return slot;
   }
-  
   
   return (sl_d_obj_t*)SL_D_NULL;
   
@@ -240,6 +276,12 @@ sl_i_return_t* sl_i_return_new(sl_d_obj_t* value) {
   r = sl_d_gen_obj_new(SL_DATA_RETURN, sizeof(sl_i_return_t));
   r->value = value;
   return r;
+}
+sl_d_obj_t* sl_i_return_unwrap(sl_d_obj_t* ret) {
+  if(ret->type == SL_DATA_RETURN) {
+    return ((sl_i_return_t*)ret)->value;
+  }
+  return ret;
 }
 
 // METHOD ---------------------------------------------------------------------
@@ -286,10 +328,24 @@ sl_d_obj_t* sl_d_method_call(
       (sl_d_sym_t*)param_item->value,
       arg_item->value
     );
+    param_item = sl_d_array_next_item(method->params, param_item);
+    arg_item   = sl_d_array_next_item(args, arg_item);
+    i += 1;
   }
   sl_d_obj_set_slot((sl_d_obj_t*)scope, self_sym, self);
-  
-  return sl_d_block_call(method->block, scope, block_params);
+  // Call the block itself
+  sl_d_obj_t* ret = sl_d_block_call(method->block, scope, block_params);
+  // Clean up
+  sl_d_obj_release((sl_d_obj_t*)scope);
+  // sl_d_obj_release((sl_d_obj_t*)args);
+  return ret;
+}
+void sl_d_method_free(sl_d_method_t* m) {
+  if(m->params != NULL) {
+    sl_d_obj_free((sl_d_obj_t*)m->params);
+  }
+  DEBUG("TODO BLOCK FREE");
+  free(m);
 }
 
 // MESSAGE --------------------------------------------------------------------
@@ -305,6 +361,10 @@ void sl_d_message_empty(sl_d_message_t* m) {
   if(m->arguments != NULL) {
     sl_d_obj_release((sl_d_obj_t*)m->arguments);
   }
+}
+void sl_d_message_free(sl_d_message_t* m) {
+  sl_d_message_empty(m);
+  free(m);
 }
 
 // STRING ---------------------------------------------------------------------
@@ -340,6 +400,18 @@ sl_d_block_t* sl_d_block_new() {
   b->params = NULL;
   return b;
 }
+sl_d_obj_t* sl_d_block_call(
+  sl_d_block_t* block,
+  sl_d_scope_t* scope,
+  sl_d_array_t* params
+) {
+  static sl_d_sym_t* closure_sym = NULL;
+  if(closure_sym == NULL) { closure_sym = sl_d_sym_new("closure"); }
+  
+  scope->parent = block->closure;
+  sl_d_obj_set_slot((sl_d_obj_t*)scope, closure_sym, (sl_d_obj_t*)block->closure);
+  return sl_s_expr_eval(block->expr, scope);
+}
 
 // ARRAY ----------------------------------------------------------------------
 
@@ -373,7 +445,7 @@ void sl_d_array_push(sl_d_array_t* arr, sl_d_obj_t* obj) {
 sl_d_obj_t* sl_d_array_index(sl_d_array_t* arr, int i) {
   sl_i_array_item_t* item = sl_d_array_index_item(arr, i);
   if(item == NULL) {
-    char buff[8];
+    char buff[12];
     sprintf(buff, "%d", i);
     char* msgs[2] = {"No item at index ", buff};
     return sl_d_exception_new(2, msgs);
@@ -397,7 +469,7 @@ sl_i_array_item_t* sl_d_array_next_item(sl_d_array_t* arr, sl_i_array_item_t* i)
 sl_d_obj_t* sl_d_array_index_set(sl_d_array_t* arr, int i, sl_d_obj_t* obj) {
   sl_i_array_item_t* item = sl_d_array_index_item(arr, i);
   if(item == NULL) {
-    char buff[8];
+    char buff[12];
     sprintf(buff, "%d", i);
     char* msgs[2] = {"No item at index ", buff};
     return sl_d_exception_new(2, msgs);
@@ -463,12 +535,27 @@ void sl_d_sym_free(sl_d_sym_t* sym) {
 
 // INTEGER --------------------------------------------------------------------
 
-sl_d_int_t* sl_d_int_new() {
+sl_d_int_t* sl_d_int_new(int value) {
   sl_d_int_t* i;
   i = sl_d_gen_obj_new(SL_DATA_INT, sizeof(sl_d_int_t));
+  i->parent = sl_i_root_int;
+  i->value = value;
   return i;
 }
 void sl_d_int_free(sl_d_int_t* i) {
+  free(i);
+}
+
+// FLOAT ----------------------------------------------------------------------
+
+sl_d_float_t* sl_d_float_new(float value) {
+  sl_d_float_t* i;
+  i = sl_d_gen_obj_new(SL_DATA_INT, sizeof(sl_d_float_t));
+  i->parent = sl_i_root_float;
+  i->value = value;
+  return i;
+}
+void sl_d_float_free(sl_d_float_t* i) {
   free(i);
 }
 
