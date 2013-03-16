@@ -21,9 +21,11 @@ extern int yylex();
 extern int yyparse();
 void yyerror(sl_s_expr_t **head, yyscan_t scanner, const char *err);
 extern int yylineno_extern;
+
+// %glr-parser
 %}
 
-%glr-parser
+
 %pure-parser
 %lex-param { yyscan_t scanner }
 %parse-param { sl_s_expr_t **head }
@@ -57,7 +59,11 @@ extern int yylineno_extern;
 %token SL_T_COMMENT
 %token <p_string> SL_T_OPERATOR
 %token SL_T_DEF
-%token <p_string> SL_T_ASSIGN
+%token <p_string> SL_T_ASSIGN;
+
+
+%left SL_T_TERMINAL;
+%left SL_T_RBRACK;
 
 %type <p_node> main
 %type <p_node> plain_expr;
@@ -68,7 +74,6 @@ extern int yylineno_extern;
 %type <p_node> subexpr;
 %type <p_node> message;
 %type <p_node> messages
-%type <p_node> keywords;
 %type <p_node> keyword_pair;
 %type <p_node> block;
 %type <p_node> block_body;
@@ -93,7 +98,7 @@ exprs: expr exprs {
 };
 exprs: expr { $$ = $1; };
 
-expr: plain_expr expr_terminal {
+expr: plain_expr SL_T_TERMINAL {
   $$ = $1;
 };
 
@@ -103,7 +108,6 @@ plain_expr: messages {
   e->head = m;
   $$ = e;
 }
-expr_terminal: SL_T_TERMINAL;
 
 subexpr: literal { $$ = $1; }
        | ident { $$ = $1; }
@@ -112,9 +116,9 @@ subexpr: SL_T_LPAREN plain_expr SL_T_RPAREN { $$ = $2; };
 subexpr: SL_T_LPAREN subexpr SL_T_RPAREN { $$ = $2; };
 
 
-messages: message SL_T_SEP messages {
+messages: message messages {
   sl_s_message_t* left  = (sl_s_message_t*)$1;
-  sl_s_message_t* right = (sl_s_message_t*)$3;
+  sl_s_message_t* right = (sl_s_message_t*)$2;
   if(left->type != SL_SYNTAX_MESSAGE) {
     LOG_ERR("Left must be message (currently %d)", left->type);
   }
@@ -142,13 +146,7 @@ messages: message {
   $$ = m;
 };
 
-message: keyword_pair {
-  sl_s_sym_t* head = $1;
-  sl_s_message_t* msg = sl_s_message_new();
-  msg->head = (sl_s_base_t*)head;
-  msg->keyword = true;
-  $$ = msg;
-};
+
 
 message: SL_T_DEF {
   sl_s_message_t* msg = sl_s_message_new();
@@ -157,14 +155,21 @@ message: SL_T_DEF {
   msg->head = (sl_s_base_t*)def;
   $$ = msg;
 };
-message: ident SL_T_SEP SL_T_ASSIGN SL_T_SEP subexpr {
+message: keyword_pair {
+  sl_s_sym_t* head = $1;
+  sl_s_message_t* msg = sl_s_message_new();
+  msg->head = (sl_s_base_t*)head;
+  msg->keyword = true;
+  $$ = msg;
+};
+message: ident SL_T_ASSIGN subexpr {
   sl_s_message_t* msg = sl_s_message_new();
   
   sl_s_sym_t* assign = sl_s_sym_new();
   assign->value = "=";
   assign->assign = true;
   sl_s_sym_t* ident = $1;
-  sl_s_expr_t* value = $5;
+  sl_s_expr_t* value = $3;
   
   assign->next = ident;
   ident->prev = assign;
@@ -173,15 +178,14 @@ message: ident SL_T_SEP SL_T_ASSIGN SL_T_SEP subexpr {
   value->prev = ident;
   
   msg->head = (sl_s_base_t*)assign;
-  DEBUG("assign next = %p", assign->next);
   
   $$ = msg;
 };
-message: SL_T_OPERATOR SL_T_SEP subexpr {
+message: SL_T_OPERATOR subexpr {
   sl_s_sym_t* op = sl_s_sym_new();
   op->value = $1;
   op->operator = true;
-  sl_s_expr_t* value = $3;
+  sl_s_expr_t* value = $2;
   
   op->next = value;
   value->prev = op;
@@ -198,25 +202,11 @@ message: subexpr {
 }
 
 
-
-/* Keywords generates a regular list just like any other expression but it also
-verifies the correctness of the syntax ahead of time so we can interpret faster
-later on. */
-keywords: keyword_pair SL_T_SEP keywords {
-  sl_s_sym_t* left = $1;
-  sl_s_sym_t* right = $3;
-  sl_s_expr_t* left_value = left->next;
-  left_value->next = right;
-  right->prev = left_value;
-  $$ = left;
-};
-keywords: keyword_pair { $$ = $1; };
-
-keyword_pair: SL_T_KEYWORD SL_T_SEP subexpr {
+keyword_pair: SL_T_KEYWORD subexpr {
   sl_s_sym_t* kw = sl_s_sym_new();
   kw->value = $1;
   kw->keyword = true;
-  sl_s_expr_t* se = $3;
+  sl_s_expr_t* se = $2;
   
   kw->next = se;
   se->prev = kw;
@@ -261,21 +251,18 @@ block: SL_T_LBRACK block_inside SL_T_RBRACK {
   b->head = head;
   $$ = b;
 };
-block_inside: block_header block_body { $$ = $2 };
-block_inside: block_body { $$ = $1 };
+block_inside: block_header block_body { $$ = $2; };
+block_inside: block_body { $$ = $1; };
 block_header: SL_T_VERT block_header_inside SL_T_VERT;
 block_header_inside: ident SL_T_COMMA block_header_inside;
 block_header_inside: ident;
 
 block_body: block_body_inside { $$ = $1; };
 
-block_body_inside: exprs plain_expr {
+block_body_inside: plain_expr SL_T_TERMINAL block_body_inside {
   sl_s_expr_t* left = $1;
-  sl_s_expr_t* right = $2;
+  sl_s_expr_t* right = $3;
   
-  while(left->next != NULL) {
-    left = left->next;
-  }
   left->next = right;
   right->prev = left;
   $$ = left;
