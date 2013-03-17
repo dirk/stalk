@@ -23,11 +23,14 @@ static pthread_rwlock_t sl_i_sym_table_lock = PTHREAD_RWLOCK_INITIALIZER;
 // 
 // Global immutable null object.
 sl_d_obj_t* sl_d_null = NULL;
-// Global immutable root objects.
+// Global immutable root objects set by sl_*_bootstrap.
 sl_d_obj_t* sl_i_root_object = NULL;
 sl_d_obj_t* sl_i_root_string = NULL;
 sl_d_obj_t* sl_i_root_int    = NULL;
 sl_d_obj_t* sl_i_root_float  = NULL;
+sl_d_obj_t* sl_i_root_array  = NULL;
+sl_d_obj_t* sl_d_false = NULL;
+sl_d_obj_t* sl_d_true  = NULL;
 
 // OBJECTS --------------------------------------------------------------------
 
@@ -48,7 +51,12 @@ void* sl_d_gen_obj_new(sl_data_type type, size_t size) {
   obj->parent   = sl_i_root_object;
   obj->refcount = 1;
   obj->slots    = NULL;
-  SL_GC_DEBUG("NEW     %-4d %5d %s", obj->refcount, obj->id, sl_d_type_string_padded(obj->type));
+  
+  SL_GC_DEBUG(
+    "NEW     %-4d %5d %s",
+    obj->refcount, obj->id, sl_d_type_string_padded(obj->type)
+  );
+  
   return obj;
 }
 
@@ -89,8 +97,10 @@ char* sl_d_type_string_padded(int type) {
       return "STRING   ";
     case SL_DATA_RETURN:
       return "RETURN   ";
+    case SL_DATA_BOOL:
+      return "BOOL     ";
     default:
-      LOG_ERR("Shouldn't reach here");
+      LOG_ERR("Shouldn't reach here: type = %d", type);
       return "         ";
   }
 }
@@ -101,15 +111,29 @@ char* sl_d_type_string_padded(int type) {
 static inline void sl_d_obj_free(sl_d_obj_t* obj);
 
 void sl_d_obj_retain(sl_d_obj_t* obj) {
+  if(obj->type == SL_DATA_NULL || obj->type == SL_DATA_BOOL) {
+    return;
+  }
+  
   obj->refcount += 1;
-  SL_GC_DEBUG("RETAIN  %-4d %5d %s", obj->refcount, obj->id, sl_d_type_string_padded(obj->type));
+  SL_GC_DEBUG(
+    "RETAIN  %-4d %5d %s",
+    obj->refcount, obj->id, sl_d_type_string_padded(obj->type)
+  );
 }
 bool sl_d_obj_release(sl_d_obj_t* obj) {
+  if(obj->type == SL_DATA_NULL || obj->type == SL_DATA_BOOL) {
+    return false;
+  }
   obj->refcount -= 1;
-  SL_GC_DEBUG("RELEASE %-4d %5d %s", obj->refcount, obj->id, sl_d_type_string_padded(obj->type));
+  SL_GC_DEBUG(
+    "RELEASE %-4d %5d %s",
+    obj->refcount, obj->id, sl_d_type_string_padded(obj->type)
+  );
   if(obj->refcount != 0) {
     return false;
   }
+  // return false;
   sl_d_obj_free(obj);
   return true;
 }
@@ -153,6 +177,9 @@ static inline void sl_d_obj_free(sl_d_obj_t* obj) {
   case SL_DATA_SCOPE:
     sl_d_scope_free((sl_d_scope_t*)obj);
     break;
+  case SL_DATA_BOOL:
+    LOG_ERR("Freeing boolean");
+    break;
   default:
     LOG_ERR("Unexpected data type: %d", obj->type);
   }
@@ -164,19 +191,19 @@ sl_d_obj_t* sl_d_obj_get(sl_d_obj_t* obj, sl_d_sym_t* slot) {
   sl_d_obj_t* value = sl_d_obj_get_slot(obj, slot);
   if(value == NULL) {
     if(obj->parent == NULL) {
-      return SL_D_NULL;
+      return NULL;
     } else {
       value = sl_d_obj_get(obj->parent, slot);
     }
   }
-  if(value == NULL) { return SL_D_NULL; }
+  // if(value == NULL) { return SL_D_NULL; }
   
   // DEBUG("got slot %s", slot->value);
   
   return value;
 }
 void sl_d_obj_set_slot(sl_d_obj_t* obj, sl_d_sym_t* name, sl_d_obj_t* val) {
-  // DEBUG("set slot on %p: %s = %p", obj, name->value, val);
+  // DEBUG("set slot on %p: %s, type = %d", obj, name->value, val->type);
   sl_i_sym_item_t* check_item;
   sl_sym_id id = name->sym_id;
   HASH_FIND_INT(obj->slots, &id, check_item);
@@ -241,7 +268,7 @@ sl_d_exception_t* sl_d_exception_new(int count, char** strings) {
     (sl_d_obj_t*)e, message_sym, (sl_d_obj_t*)s
   );
   
-  //LOG_ERR("Exception: %s", buff);
+  LOG_ERR("Exception: %s", buff);
   
   return e;
 }
@@ -310,16 +337,19 @@ sl_d_obj_t* sl_d_obj_send(sl_d_obj_t* target, sl_d_message_t* msg) {
   sl_d_sym_t* sig;
   sl_d_obj_t* slot = sl_d_obj_get(target, msg->signature);
   
-  if(slot == SL_D_NULL) {
+  if(slot == NULL) {
     goto not_found;
   }
   if(slot->type == SL_DATA_METHOD) {
     sl_d_method_t* method = (sl_d_method_t*)slot;
+    sl_d_obj_t* ret;
     if(method->hint != NULL) {
-      return method->hint(target, msg->arguments);
+      ret = method->hint(target, msg->arguments);
     } else {
-      return sl_d_method_call(method, target, msg->arguments);
+      ret = sl_d_method_call(method, target, msg->arguments);
     }
+    // TODO: Figure out whether or not it's okay to just release the message.
+    return ret;
   } else {
     // Just a regular value from a slot
     return slot;
@@ -329,8 +359,10 @@ sl_d_obj_t* sl_d_obj_send(sl_d_obj_t* target, sl_d_message_t* msg) {
   
 not_found:
   sig = msg->signature;
-  char* msgs[2] = {"Slot not found: ", sig->value};
-  sl_d_exception_t* e = sl_d_exception_new(2, msgs);
+  char buff[4];
+  sprintf(buff, "%d", target->type);
+  char* msgs[4] = {"Slot not found: ", sig->value, ", target type = ", buff};
+  sl_d_exception_t* e = sl_d_exception_new(4, msgs);
   /*sl_i_traceback_frame_t* tf = sl_d_traceback_frame_new();
   tf->signature = sig;
   sl_d_traceback_push_frame(e->traceback, tf);*/
@@ -373,8 +405,8 @@ sl_d_obj_t* sl_d_method_call(
   static sl_d_sym_t* self_sym = NULL;
   if(self_sym == NULL) { self_sym = sl_d_sym_new("self"); }
   
-  static sl_d_array_t* block_params = NULL;
-  if(block_params == NULL) { block_params = sl_d_array_new(); }
+  SL_GC_DEBUG("-- New block params");
+  sl_d_array_t* block_params = sl_d_array_new();
   
   sl_d_scope_t* scope = sl_d_scope_new();
   
@@ -405,6 +437,8 @@ sl_d_obj_t* sl_d_method_call(
   sl_d_obj_t* ret = sl_d_block_call(method->block, scope, block_params);
   // Clean up
   sl_d_obj_release((sl_d_obj_t*)scope);
+  SL_GC_DEBUG("-- Release block params");
+  sl_d_obj_release((sl_d_obj_t*)block_params);
   // sl_d_obj_release((sl_d_obj_t*)args);
   return ret;
 }
@@ -440,7 +474,15 @@ void sl_d_message_free(sl_d_message_t* m) {
 sl_d_string_t* sl_d_string_new(char* value) {
   sl_d_string_t* s = sl_d_gen_obj_new(SL_DATA_STRING, sizeof(sl_d_string_t));
   s->parent = sl_i_root_string;
-  s->value = strdup(value);
+  s->value  = strdup(value);
+  s->length = strlen(s->value);
+  return s;
+}
+sl_d_string_t* sl_d_string_new_empty() {
+  sl_d_string_t* s = sl_d_gen_obj_new(SL_DATA_STRING, sizeof(sl_d_string_t));
+  s->parent = sl_i_root_string;
+  s->value  = "";
+  s->length = 0;
   return s;
 }
 void sl_d_string_free(sl_d_string_t* s) {
@@ -476,9 +518,18 @@ sl_d_obj_t* sl_d_block_call(
   static sl_d_sym_t* closure_sym = NULL;
   if(closure_sym == NULL) { closure_sym = sl_d_sym_new("closure"); }
   
-  scope->parent = block->closure;
+  scope->parent = (sl_d_obj_t*)block->closure;
   sl_d_obj_set_slot((sl_d_obj_t*)scope, closure_sym, (sl_d_obj_t*)block->closure);
   return sl_s_expr_eval(block->expr, scope);
+}
+
+sl_d_obj_t* sl_d_block_call_shallow(sl_d_block_t* block, sl_d_array_t* params) {
+  // sl_d_scope_t* scope = sl_d_scope_new();
+  // scope->parent = (sl_d_obj_t*)block->closure;
+  // DEBUG("closure %p type = %d", block->closure, block->closure->type);
+  sl_d_obj_retain((sl_d_obj_t*)block->closure);
+  sl_d_obj_t* ret = sl_s_expr_eval_shallow(block->expr, block->closure);
+  return ret;
 }
 
 // ARRAY ----------------------------------------------------------------------
@@ -489,8 +540,17 @@ UT_icd sl_i_array_icd = {sizeof(sl_i_array_item_t*), NULL, NULL, NULL};
 sl_d_array_t* sl_d_array_new() {
   sl_d_array_t* arr;
   arr = sl_d_gen_obj_new(SL_DATA_ARRAY, sizeof(sl_d_array_t));
+  arr->parent = sl_i_root_array;
   utarray_new(arr->objs, &sl_i_array_icd);
   return arr;
+}
+sl_d_array_t* sl_d_array_new_length(int length) {
+  sl_d_array_t* arr = sl_d_array_new();
+  utarray_resize(arr->objs, length);
+  return arr;
+}
+int sl_d_array_length(sl_d_array_t* arr) {
+  return utarray_len(arr->objs);
 }
 void sl_d_array_free(sl_d_array_t* arr) {
   sl_d_obj_t* obj;
@@ -513,10 +573,11 @@ void sl_d_array_push(sl_d_array_t* arr, sl_d_obj_t* obj) {
 sl_d_obj_t* sl_d_array_index(sl_d_array_t* arr, int i) {
   sl_i_array_item_t* item = sl_d_array_index_item(arr, i);
   if(item == NULL) {
-    char buff[12];
-    sprintf(buff, "%d", i);
-    char* msgs[2] = {"No item at index ", buff};
-    return (sl_d_obj_t*)sl_d_exception_new(2, msgs);
+    // char buff[12];
+    // sprintf(buff, "%d", i);
+    // char* msgs[2] = {"No item at index ", buff};
+    // return (sl_d_obj_t*)sl_d_exception_new(2, msgs);
+    return SL_D_NULL;
   } else {
     return item->value;
   }

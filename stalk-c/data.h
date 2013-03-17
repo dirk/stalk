@@ -24,10 +24,11 @@ typedef unsigned char sl_data_type;
 #define SL_DATA_EXCEPTION 9
 #define SL_DATA_STRING    10
 #define SL_DATA_RETURN    11
+#define SL_DATA_BOOL      12
 
 #define SL_DATA_TYPE    sl_data_type type;
 #define SL_OBJ_ID       sl_obj_id id;
-#define SL_OBJ_PARENT   void* parent;
+#define SL_OBJ_PARENT   struct sl_d_obj* parent;
 #define SL_OBJ_REFCOUNT unsigned int refcount;
 #define SL_OBJ_SLOTS    sl_i_sym_item_t* slots;
 #define SL_OBJ_HEADER   SL_DATA_TYPE \
@@ -36,13 +37,20 @@ typedef unsigned char sl_data_type;
                         SL_OBJ_REFCOUNT \
                         SL_OBJ_SLOTS
 
-#define SL_D_NULL sl_d_null
-#define D_NULL    sl_d_null
+#define SL_D_NULL  sl_d_null
+#define SL_D_FALSE sl_d_false
+#define SL_D_TRUE  sl_d_true
 
 #define SL_DATA_EXTERN extern sl_d_obj_t* sl_d_null; \
                        extern sl_d_obj_t* sl_i_root_object; \
                        extern sl_d_obj_t* sl_i_root_string; \
-                       extern sl_d_obj_t* sl_i_root_int;
+                       extern sl_d_obj_t* sl_i_root_int; \
+                       extern sl_d_obj_t* sl_i_root_array; \
+                       extern sl_d_obj_t* sl_d_false; \
+                       extern sl_d_obj_t* sl_d_true;
+
+#define SL_D_TRUTHY(val) (val != NULL && val != SL_D_FALSE && \
+                          val != SL_D_NULL && val->type != SL_DATA_EXCEPTION)
 
 typedef unsigned int sl_scope_item_id;
 
@@ -147,6 +155,7 @@ typedef struct sl_d_message {
 typedef struct sl_d_string {
   SL_OBJ_HEADER;
   char* value;
+  int length;
 } sl_d_string_t;
 
 
@@ -210,14 +219,18 @@ sl_d_obj_t* sl_d_block_call(
   sl_d_scope_t* scope,
   sl_d_array_t* params
 );
+sl_d_obj_t* sl_d_block_call_shallow(sl_d_block_t* block, sl_d_array_t* params);
 
 sl_d_scope_t* sl_d_scope_new();
 void sl_d_scope_free(sl_d_scope_t* s);
 
 sl_d_string_t* sl_d_string_new(char* value);
+sl_d_string_t* sl_d_string_new_empty();
 void sl_d_string_free(sl_d_string_t* s);
 
 sl_d_array_t* sl_d_array_new();
+sl_d_array_t* sl_d_array_new_length(int length);
+int sl_d_array_length(sl_d_array_t* arr);
 void sl_d_array_push(sl_d_array_t* arr, sl_d_obj_t* obj);
 sl_d_obj_t* sl_d_array_index(sl_d_array_t* arr, int i);
 sl_i_array_item_t* sl_d_array_index_item(sl_d_array_t* arr, int i);
