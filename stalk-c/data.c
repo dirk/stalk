@@ -564,13 +564,13 @@ void sl_d_array_free(sl_d_array_t* arr) {
   utarray_free(arr->objs);
   free(arr);
 }
-void sl_d_array_push(sl_d_array_t* arr, sl_d_obj_t* obj) {
+void sl_d_array_push(sl_d_array_t* arr, void* obj) {
   sl_i_array_item_t* item = malloc(sizeof(sl_i_array_item_t));
   item->value = obj;
   sl_d_obj_retain(obj);
   utarray_push_back(arr->objs, item);
 }
-sl_d_obj_t* sl_d_array_index(sl_d_array_t* arr, int i) {
+void* sl_d_array_index(sl_d_array_t* arr, int i) {
   sl_i_array_item_t* item = sl_d_array_index_item(arr, i);
   if(item == NULL) {
     // char buff[12];
@@ -595,7 +595,7 @@ sl_i_array_item_t* sl_d_array_first_item(sl_d_array_t* arr) {
 sl_i_array_item_t* sl_d_array_next_item(sl_d_array_t* arr, sl_i_array_item_t* i) {
   return (sl_i_array_item_t*)utarray_next(arr->objs, i);
 }
-sl_d_obj_t* sl_d_array_index_set(sl_d_array_t* arr, int i, sl_d_obj_t* obj) {
+void* sl_d_array_index_set(sl_d_array_t* arr, int i, void* obj) {
   sl_i_array_item_t* item = sl_d_array_index_item(arr, i);
   if(item == NULL) {
     char buff[12];
@@ -603,7 +603,7 @@ sl_d_obj_t* sl_d_array_index_set(sl_d_array_t* arr, int i, sl_d_obj_t* obj) {
     char* msgs[2] = {"No item at index ", buff};
     return (sl_d_obj_t*)sl_d_exception_new(2, msgs);
   } else {
-    sl_d_obj_t* old_val = item->value;
+    void* old_val = item->value;
     item->value = obj;
     sl_d_obj_release(old_val);
     sl_d_obj_retain(obj);

@@ -74,7 +74,7 @@ typedef struct sl_i_return {
 } sl_i_return_t;
 
 typedef struct sl_i_array_item {
-  sl_d_obj_t* value;
+  void* value;
 } sl_i_array_item_t;
 
 typedef struct sl_d_int {
@@ -231,13 +231,13 @@ void sl_d_string_free(sl_d_string_t* s);
 sl_d_array_t* sl_d_array_new();
 sl_d_array_t* sl_d_array_new_length(int length);
 int sl_d_array_length(sl_d_array_t* arr);
-void sl_d_array_push(sl_d_array_t* arr, sl_d_obj_t* obj);
-sl_d_obj_t* sl_d_array_index(sl_d_array_t* arr, int i);
+void sl_d_array_push(sl_d_array_t* arr, void* obj);
+void* sl_d_array_index(sl_d_array_t* arr, int i);
 sl_i_array_item_t* sl_d_array_index_item(sl_d_array_t* arr, int i);
 void sl_d_array_free(sl_d_array_t* arr);
 sl_i_array_item_t* sl_d_array_first_item(sl_d_array_t* arr);
 sl_i_array_item_t* sl_d_array_next_item(sl_d_array_t* arr, sl_i_array_item_t* i);
-sl_d_obj_t* sl_d_array_index_set(sl_d_array_t* arr, int i, sl_d_obj_t* obj);
+void* sl_d_array_index_set(sl_d_array_t* arr, int i, void* obj);
 
 sl_d_int_t* sl_d_int_new(int value);
 void sl_d_int_free(sl_d_int_t* arr);

@@ -151,7 +151,6 @@ int main(int argc, char *argv[]) {
   yy_delete_buffer(buffer, scanner);
   yylex_destroy(scanner);
   
-  
   sl_d_scope_t* root = sl_d_scope_new();
   
   sl_d_obj_t* ret = sl_s_eval(head, root);
