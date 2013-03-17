@@ -28,9 +28,9 @@ id          [A-Za-z][A-Za-z0-9_]*
 comment     [ \t]*#[^\n]*
 
 %%
+[ \t\n]*"#"[^\n]* { /*fprintf(stderr, "removing: '%s'", strdup(yytext));*/ }
 ^[ \t]*           { }
 [ \t]+$           { }
-[ \t\n]*"#"[^\n]*[ \t\n]* { /*fprintf(stderr, "removing: '%s'", strdup(yytext));*/ }
 
 {integer}{fractional} {
   yylval->p_float = atof(yytext);
@@ -53,11 +53,11 @@ comment     [ \t]*#[^\n]*
 "["[ \t\n]*    {              return SL_T_LSQ; }
 ","[ \t\n]*    {              return SL_T_COMMA; }
 "\""[^\"]*"\"" { SAVE_STRING; return SL_T_STRING; }
-[+\-*/\^%&><]  { SAVE_STRING; return SL_T_OPERATOR; }
+[+\-*/^%&><]|"==" { SAVE_STRING; return SL_T_OPERATOR; }
 "="            {              return SL_T_ASSIGN; }
+
 [ \t]+"\\""\n"+ {             /*return SL_T_SEP;*/  }
-[ \t]*"\n"+[ \t\n]*    {         return SL_T_TERMINAL; }
 [ \t]+         {              /*return SL_T_SEP;*/  }
 
-
+[ \t]*"\n"+[ \t\n]*    {         return SL_T_TERMINAL; }
 

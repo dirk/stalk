@@ -24,7 +24,7 @@ extern int yylineno_extern;
 typedef void* yyscan_t;
 #endif
 
-#define SOURCE(a) a->source = source; a->line = (yylloc.first_line + 1);
+#define SOURCE(a) a->source = source; a->line = (yylloc.first_line);
 }
 
 %locations
@@ -65,8 +65,10 @@ typedef void* yyscan_t;
 %token <p_string> SL_T_ASSIGN;
 
 
+%left SL_T_LPAREN;
+%left SL_T_ASSIGN;
+%left SL_T_KEYWORD;
 %left SL_T_TERMINAL;
-%left SL_T_RBRACK;
 
 %type <p_node> main
 %type <p_node> plain_expr;
@@ -80,7 +82,6 @@ typedef void* yyscan_t;
 %type <p_node> keyword_pair;
 %type <p_node> block;
 %type <p_node> block_body;
-%type <p_node> block_body_inside;
 %type <p_node> block_inside;
 
 %%
@@ -106,9 +107,13 @@ expr: plain_expr SL_T_TERMINAL {
 };
 
 plain_expr: messages {
-  sl_s_base_t* m = $1;
+  sl_s_base_t* msg = $1;
+  if(msg->type != SL_SYNTAX_MESSAGE) {
+    LOG_ERR("Expression must contain messages (currently %d)", msg->type);
+  }
+  SOURCE(msg);
   sl_s_expr_t* e = sl_s_expr_new();
-  e->head = m;
+  e->head = msg;
   $$ = e;
 }
 
@@ -134,19 +139,22 @@ messages: message messages {
   if(right->head == NULL) {
     LOG_ERR("Right head is null");
   }
+  SOURCE(left);
+  SOURCE(right);
   left->next = right;
   right->prev = left;
   $$ = left;
 };
 messages: message {
-  sl_s_message_t* m = (sl_s_message_t*)$1;
-  if(m->type != SL_SYNTAX_MESSAGE) {
-    LOG_ERR("Message must be message (currently %d)", m->type);
+  sl_s_message_t* msg = (sl_s_message_t*)$1;
+  if(msg->type != SL_SYNTAX_MESSAGE) {
+    LOG_ERR("Message must be message (currently %d)", msg->type);
   }
-  if(m->head == NULL) {
+  if(msg->head == NULL) {
     LOG_ERR("Message head is null");
   }
-  $$ = m;
+  SOURCE(msg);
+  $$ = msg;
 };
 
 
@@ -203,6 +211,9 @@ message: SL_T_OPERATOR subexpr {
 message: subexpr {
   sl_s_message_t* msg = sl_s_message_new();
   sl_s_base_t* sub = $1;
+  if(sub->type == SL_SYNTAX_MESSAGE) {
+    LOG_ERR("Subexpression may not contain messages (%d)", msg->type);
+  }
   msg->head = sub;
   SOURCE(msg);
   $$ = msg;
@@ -264,17 +275,22 @@ block_header: SL_T_VERT block_header_inside SL_T_VERT;
 block_header_inside: ident SL_T_COMMA block_header_inside;
 block_header_inside: ident;
 
-block_body: block_body_inside { $$ = $1; };
-
-block_body_inside: plain_expr SL_T_TERMINAL block_body_inside {
+block_body: plain_expr SL_T_TERMINAL block_body {
   sl_s_expr_t* left = $1;
   sl_s_expr_t* right = $3;
+  
+  if(left->type != SL_SYNTAX_EXPR) {
+    LOG_ERR("Must be an expression (currently %d)", left->type);
+  }
+  if(right->type != SL_SYNTAX_EXPR) {
+    LOG_ERR("Must be an expression (currently %d)", right->type);
+  }
   
   left->next = right;
   right->prev = left;
   $$ = left;
 };
-block_body_inside: plain_expr { $$ = $1; };
+block_body: plain_expr { $$ = $1; };
 
 ident: SL_T_IDENT {
   sl_s_sym_t* s = sl_s_sym_new();
