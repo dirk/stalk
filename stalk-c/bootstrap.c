@@ -64,8 +64,13 @@ static inline sl_d_obj_t* guard_int(sl_d_obj_t* val, int index) {
   if(val->type != SL_DATA_INT) {
     char buff[4];
     sprintf(buff, "%d", index);
-    char* msgs[3] = {"Argument ", buff, " must be an integer"};
-    return (sl_d_obj_t*)sl_d_exception_new(3, msgs);
+    char buff2[8];
+    sprintf(buff2, "%d", val->type);
+    char* msgs[5] = {
+      "Argument ", buff, " must be an integer (currently ",
+      buff2, ")"
+    };
+    return (sl_d_obj_t*)sl_d_exception_new(5, msgs);
   }
   return NULL;
 }
@@ -298,8 +303,8 @@ SL_I_METHOD_F(string_from_to) {//args: self, params
     buff[len] = '\0';
     sl_d_string_t* ret = sl_d_string_new(buff);
     free(buff);
-    sl_d_obj_release(_from);
-    sl_d_obj_release(_to);
+    // sl_d_obj_release(_from);
+    // sl_d_obj_release(_to);
     return (sl_d_obj_t*)ret;
   } else {
     return SL_D_NULL;
@@ -318,7 +323,7 @@ SL_I_METHOD_F(string_from) {//args: self, params
   
   if(from <= str->length) {
     sl_d_obj_t* ret = (sl_d_obj_t*)sl_d_string_new(&str->value[from]);
-    sl_d_obj_release(_from);
+    // sl_d_obj_release(_from);
     return ret;
   } else {
     return SL_D_NULL;
@@ -334,6 +339,8 @@ SL_I_METHOD_F(int_string) {//args: self, params
   sprintf(buff, "%d", _self->value);
   // Construct return object
   sl_d_obj_t* ret = (sl_d_obj_t*)sl_d_string_new(buff);
+  // And release the self since no longer needed
+  // sl_d_obj_release(self);
   return ret;
 }
 
@@ -346,7 +353,7 @@ SL_I_METHOD_F(int_mod) {//args: self, params
   sl_d_int_t* _self  = (sl_d_int_t*)self;
   sl_d_int_t* _other = (sl_d_int_t*)other;
   sl_d_obj_t* ret = (sl_d_obj_t*)sl_d_int_new(_self->value % _other->value);
-  sl_d_obj_release(self); sl_d_obj_release(other);
+  // sl_d_obj_release(self); sl_d_obj_release(other);
   return ret;
 }
 
@@ -359,7 +366,7 @@ SL_I_METHOD_F(int_add) {//args: self, params
   sl_d_int_t* _self  = (sl_d_int_t*)self;
   sl_d_int_t* _other = (sl_d_int_t*)other;
   sl_d_obj_t* ret = (sl_d_obj_t*)sl_d_int_new(_self->value + _other->value);
-  sl_d_obj_release(self); sl_d_obj_release(other);
+  // sl_d_obj_release(self); sl_d_obj_release(other);
   return ret;
 }
 
@@ -372,7 +379,7 @@ SL_I_METHOD_F(int_sub) {//args: self, params
   sl_d_int_t* _self  = (sl_d_int_t*)self;
   sl_d_int_t* _other = (sl_d_int_t*)other;
   sl_d_obj_t* ret = (sl_d_obj_t*)sl_d_int_new(_self->value - _other->value);
-  sl_d_obj_release(self); sl_d_obj_release(other);
+  // sl_d_obj_release(self); sl_d_obj_release(other);
   return ret;
 }
 
@@ -385,7 +392,7 @@ SL_I_METHOD_F(int_mul) {//args: self, params
   sl_d_int_t* _self  = (sl_d_int_t*)self;
   sl_d_int_t* _other = (sl_d_int_t*)other;
   sl_d_obj_t* ret = (sl_d_obj_t*)sl_d_int_new(_self->value * _other->value);
-  sl_d_obj_release(self); sl_d_obj_release(other);
+  // sl_d_obj_release(self); sl_d_obj_release(other);
   return ret;
 }
 
@@ -398,7 +405,7 @@ SL_I_METHOD_F(int_div) {//args: self, params
   sl_d_int_t* _self  = (sl_d_int_t*)self;
   sl_d_int_t* _other = (sl_d_int_t*)other;
   sl_d_obj_t* ret = (sl_d_obj_t*)sl_d_int_new(_self->value / _other->value);
-  sl_d_obj_release(self); sl_d_obj_release(other);
+  // sl_d_obj_release(self); sl_d_obj_release(other);
   return ret;
 }
 
@@ -411,10 +418,10 @@ SL_I_METHOD_F(int_lt) {//args: self, params
   sl_d_int_t* _self  = (sl_d_int_t*)self;
   sl_d_int_t* _other = (sl_d_int_t*)other;
   if(_self->value < _other->value) {
-    sl_d_obj_release(self); sl_d_obj_release(other);
+    // sl_d_obj_release(self); sl_d_obj_release(other);
     return SL_D_TRUE;
   } else {
-    sl_d_obj_release(self); sl_d_obj_release(other);
+    // sl_d_obj_release(self); sl_d_obj_release(other);
     return SL_D_FALSE;
   }
 }
@@ -428,10 +435,10 @@ SL_I_METHOD_F(int_gt) {//args: self, params
   sl_d_int_t* _self  = (sl_d_int_t*)self;
   sl_d_int_t* _other = (sl_d_int_t*)other;
   if(_self->value > _other->value) {
-    sl_d_obj_release(self); sl_d_obj_release(other);
+    // sl_d_obj_release(self); sl_d_obj_release(other);
     return SL_D_TRUE;
   } else {
-    sl_d_obj_release(self); sl_d_obj_release(other);
+    // sl_d_obj_release(self); sl_d_obj_release(other);
     return SL_D_FALSE;
   }
 }
@@ -445,10 +452,10 @@ SL_I_METHOD_F(int_cmp) {//args: self, params
   sl_d_int_t* _self  = (sl_d_int_t*)self;
   sl_d_int_t* _other = (sl_d_int_t*)other;
   if(_self->value == _other->value) {
-    sl_d_obj_release(self); sl_d_obj_release(other);
+    // sl_d_obj_release(self); sl_d_obj_release(other);
     return SL_D_TRUE;
   } else {
-    sl_d_obj_release(self); sl_d_obj_release(other);
+    // sl_d_obj_release(self); sl_d_obj_release(other);
     return SL_D_FALSE;
   }
 }

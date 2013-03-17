@@ -197,6 +197,7 @@ sl_d_obj_t* sl_d_obj_send(sl_d_obj_t* target, sl_d_message_t* ret);
 
 sl_d_sym_t* sl_d_sym_new(char* name);
 void sl_d_sym_free(sl_d_sym_t* sym);
+sl_d_sym_t* sl_i_sym_lookup(sl_sym_id id);
 
 sl_i_return_t* sl_i_return_new(sl_d_obj_t* value);
 sl_d_obj_t* sl_i_return_unwrap(sl_d_obj_t* ret);
@@ -232,6 +233,7 @@ sl_d_array_t* sl_d_array_new();
 sl_d_array_t* sl_d_array_new_length(int length);
 int sl_d_array_length(sl_d_array_t* arr);
 void sl_d_array_push(sl_d_array_t* arr, void* obj);
+void sl_d_array_push_no_retain(sl_d_array_t* arr, void* obj);
 void* sl_d_array_index(sl_d_array_t* arr, int i);
 sl_i_array_item_t* sl_d_array_index_item(sl_d_array_t* arr, int i);
 void sl_d_array_free(sl_d_array_t* arr);

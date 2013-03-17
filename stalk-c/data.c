@@ -34,6 +34,8 @@ sl_d_obj_t* sl_d_true  = NULL;
 
 // OBJECTS --------------------------------------------------------------------
 
+static int __total_objects = 0;
+
 sl_d_obj_t* sl_d_obj_new() {
   sl_d_obj_t* obj;
   obj = sl_d_gen_obj_new(SL_DATA_OBJ, sizeof(sl_d_obj_t));
@@ -52,10 +54,12 @@ void* sl_d_gen_obj_new(sl_data_type type, size_t size) {
   obj->refcount = 1;
   obj->slots    = NULL;
   
+  
   SL_GC_DEBUG(
     "NEW     %-4d %5d %s",
     obj->refcount, obj->id, sl_d_type_string_padded(obj->type)
   );
+  __total_objects++;
   
   return obj;
 }
@@ -112,6 +116,7 @@ static inline void sl_d_obj_free(sl_d_obj_t* obj);
 
 void sl_d_obj_retain(sl_d_obj_t* obj) {
   if(obj->type == SL_DATA_NULL || obj->type == SL_DATA_BOOL) {
+    SL_GC_DEBUG("RETAIN  SKIP       %s", sl_d_type_string_padded(obj->type));
     return;
   }
   
@@ -123,16 +128,18 @@ void sl_d_obj_retain(sl_d_obj_t* obj) {
 }
 bool sl_d_obj_release(sl_d_obj_t* obj) {
   if(obj->type == SL_DATA_NULL || obj->type == SL_DATA_BOOL) {
+    SL_GC_DEBUG("RELEASE SKIP       %s", sl_d_type_string_padded(obj->type));
     return false;
   }
   obj->refcount -= 1;
   SL_GC_DEBUG(
-    "RELEASE %-4d %5d %s",
-    obj->refcount, obj->id, sl_d_type_string_padded(obj->type)
+    "RELEASE %-4d %5d %s (to = %d)",
+    obj->refcount, obj->id, sl_d_type_string_padded(obj->type), __total_objects
   );
   if(obj->refcount != 0) {
     return false;
   }
+  __total_objects--;
   // return false;
   sl_d_obj_free(obj);
   return true;
@@ -148,11 +155,14 @@ static inline void sl_d_obj_free(sl_d_obj_t* obj) {
     HASH_ITER(hh, obj->slots, current_item, tmp_item) {
       HASH_DEL(obj->slots, current_item);
       if(current_item->value != NULL) {
+        sl_d_sym_t* sym = sl_i_sym_lookup(current_item->id);
+        SL_GC_DEBUG("-- Slot release: %s", sym->value);
         sl_d_obj_release((sl_d_obj_t*)current_item->value);
       }
       free(current_item);
     }
   }
+  obj->refcount = -1;
   
   // Then call the internal free to finish the rest of the job.
   switch(obj->type) {
@@ -203,7 +213,6 @@ sl_d_obj_t* sl_d_obj_get(sl_d_obj_t* obj, sl_d_sym_t* slot) {
   return value;
 }
 void sl_d_obj_set_slot(sl_d_obj_t* obj, sl_d_sym_t* name, sl_d_obj_t* val) {
-  // DEBUG("set slot on %p: %s, type = %d", obj, name->value, val->type);
   sl_i_sym_item_t* check_item;
   sl_sym_id id = name->sym_id;
   HASH_FIND_INT(obj->slots, &id, check_item);
@@ -341,6 +350,7 @@ sl_d_obj_t* sl_d_obj_send(sl_d_obj_t* target, sl_d_message_t* msg) {
     goto not_found;
   }
   if(slot->type == SL_DATA_METHOD) {
+    SL_GC_DEBUG("-- Message send: %s", msg->signature->value);
     sl_d_method_t* method = (sl_d_method_t*)slot;
     sl_d_obj_t* ret;
     if(method->hint != NULL) {
@@ -436,6 +446,7 @@ sl_d_obj_t* sl_d_method_call(
   // Call the block itself
   sl_d_obj_t* ret = sl_d_block_call(method->block, scope, block_params);
   // Clean up
+  SL_GC_DEBUG("-- Release block scope");
   sl_d_obj_release((sl_d_obj_t*)scope);
   SL_GC_DEBUG("-- Release block params");
   sl_d_obj_release((sl_d_obj_t*)block_params);
@@ -527,7 +538,7 @@ sl_d_obj_t* sl_d_block_call_shallow(sl_d_block_t* block, sl_d_array_t* params) {
   // sl_d_scope_t* scope = sl_d_scope_new();
   // scope->parent = (sl_d_obj_t*)block->closure;
   // DEBUG("closure %p type = %d", block->closure, block->closure->type);
-  sl_d_obj_retain((sl_d_obj_t*)block->closure);
+  // sl_d_obj_retain((sl_d_obj_t*)block->closure);
   sl_d_obj_t* ret = sl_s_expr_eval_shallow(block->expr, block->closure);
   return ret;
 }
@@ -553,6 +564,7 @@ int sl_d_array_length(sl_d_array_t* arr) {
   return utarray_len(arr->objs);
 }
 void sl_d_array_free(sl_d_array_t* arr) {
+  /*
   sl_d_obj_t* obj;
   for(
     obj = (sl_d_obj_t*)utarray_front(arr->objs);
@@ -561,6 +573,12 @@ void sl_d_array_free(sl_d_array_t* arr) {
   ) {
     sl_d_obj_release(obj);
   }
+  */
+  sl_i_array_item_t* item = sl_d_array_first_item(arr);
+  while(item != NULL) {
+    sl_d_obj_release((sl_d_obj_t*)item->value);
+    item = sl_d_array_next_item(arr, item);
+  }
   utarray_free(arr->objs);
   free(arr);
 }
@@ -568,6 +586,11 @@ void sl_d_array_push(sl_d_array_t* arr, void* obj) {
   sl_i_array_item_t* item = malloc(sizeof(sl_i_array_item_t));
   item->value = obj;
   sl_d_obj_retain(obj);
+  utarray_push_back(arr->objs, item);
+}
+void sl_d_array_push_no_retain(sl_d_array_t* arr, void* obj) {
+  sl_i_array_item_t* item = malloc(sizeof(sl_i_array_item_t));
+  item->value = obj;
   utarray_push_back(arr->objs, item);
 }
 void* sl_d_array_index(sl_d_array_t* arr, int i) {
@@ -598,6 +621,8 @@ sl_i_array_item_t* sl_d_array_next_item(sl_d_array_t* arr, sl_i_array_item_t* i)
 void* sl_d_array_index_set(sl_d_array_t* arr, int i, void* obj) {
   sl_i_array_item_t* item = sl_d_array_index_item(arr, i);
   if(item == NULL) {
+    // TODO: Make this set the item at the index instead of returning an
+    //       exception.
     char buff[12];
     sprintf(buff, "%d", i);
     char* msgs[2] = {"No item at index ", buff};
@@ -605,8 +630,8 @@ void* sl_d_array_index_set(sl_d_array_t* arr, int i, void* obj) {
   } else {
     void* old_val = item->value;
     item->value = obj;
-    sl_d_obj_release(old_val);
     sl_d_obj_retain(obj);
+    sl_d_obj_release(old_val);
     return obj;
   }
 }
@@ -660,6 +685,13 @@ void sl_d_sym_free(sl_d_sym_t* sym) {
   pthread_rwlock_unlock(&sl_i_sym_table_lock);
   free(sym->value);
   free(sym);
+}
+sl_d_sym_t* sl_i_sym_lookup(sl_sym_id id) {
+  sl_d_sym_t* s;
+  assert(pthread_rwlock_rdlock(&sl_i_sym_table_lock) == 0);
+    HASH_FIND_INT(sl_i_sym_table, &id, s);
+  pthread_rwlock_unlock(&sl_i_sym_table_lock);
+  return s;
 }
 
 // INTEGER --------------------------------------------------------------------
