@@ -149,6 +149,7 @@ static inline sl_d_sym_t* sl_i_sym_hint(sl_s_sym_t* s) {
 sl_s_block_t* sl_s_block_new() {
   sl_s_block_t* s = sl_s_base_gen_new(SL_SYNTAX_BLOCK, sizeof(sl_s_block_t));
   s->head = false;
+  s->hint = false;
   return s;
 }
 
@@ -342,12 +343,15 @@ static inline void* sl_s_sym_eval(sl_s_sym_t* s, void* scope) {
 
 static inline sl_d_block_t* sl_s_block_eval(sl_s_block_t* b, void* scope) {
   SL_SYN_DEBUG("sl_s_block_eval");
+  if(b->hint != NULL) { return (sl_d_block_t*)b->hint; }
   sl_d_block_t* block = sl_d_block_new();
   block->expr = b->head;
   block->closure = scope;
   // TODO: Make this parse and use the block header.
   // block->params = NULL;
-  return block;
+  
+  b->hint = block;
+  return (sl_d_block_t*)b->hint;
 }
 
 // This will parse a message definition starting with the first sl_s_sym

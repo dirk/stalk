@@ -2,7 +2,7 @@
 #define STALK_H
 
 #define YYDEBUG 1
-#define GC_DEBUG 1
+//#define GC_DEBUG 1
 //#define SYN_DEBUG 1
 
 #ifdef GC_DEBUG

@@ -92,6 +92,7 @@ typedef struct sl_s_float {
 typedef struct sl_s_block {
   SL_SYNTAX_HEADER;
   sl_s_expr_t* head;//inside of block
+  void* hint;
 } sl_s_block_t;
 
 typedef struct sl_s_assign {
