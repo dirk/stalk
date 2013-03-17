@@ -34,9 +34,10 @@ typedef struct sl_s_message {
   sl_s_base_t* head;
   bool keyword;
   void*  hint;//sl_d_message_t
-  void*  hint_args;// Pointer to the next message after the first
-  
+  void*  hint_args;// Pointer to an array of arg expressions
 } sl_s_message_t;
+
+
 
 typedef struct sl_s_expr {
   SL_SYNTAX_HEADER;
@@ -44,8 +45,6 @@ typedef struct sl_s_expr {
   sl_s_base_t *head;
   // sl_s_base_t *tail;// End of inner expression
 } sl_s_expr_t;
-
-
 
 typedef struct sl_s_keyword {
   SL_SYNTAX_HEADER;
@@ -129,7 +128,6 @@ sl_s_block_t* sl_s_block_new();
 sl_s_expr_t* sl_s_expr_new();
 void sl_s_expr_unshift(sl_s_expr_t* expr, sl_s_base_t* s);
 
-sl_s_message_t* sl_s_message_new();
 void sl_s_message_unshift(sl_s_message_t* message, sl_s_base_t* s);
 
 void sl_s_expr_free(sl_s_expr_t* s);
@@ -137,6 +135,7 @@ void sl_s_sym_free(sl_s_sym_t* s);
 
 void* sl_s_eval(void* _s, void* scope);
 void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope);
+void* sl_s_expr_eval_shallow(sl_s_expr_t* expr, void* scope);
 void* sl_s_int_eval(sl_s_int_t* s, void* scope);
 void* sl_s_string_eval(sl_s_string_t* s, void* scope);
 
