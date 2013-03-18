@@ -1,4 +1,4 @@
-CC=gcc
+CC=clang
 CFLAGS=-g -Wall -c -std=c99 -DHASH_FUNCTION=HASH_FNV
 LDFLAGS=-lfl
 

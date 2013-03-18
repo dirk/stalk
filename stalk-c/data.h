@@ -189,6 +189,7 @@ sl_obj_id sl_obj_next_id();
 void* sl_d_gen_obj_new(sl_data_type type, size_t size);
 void sl_d_obj_retain(sl_d_obj_t* obj);
 bool sl_d_obj_release(sl_d_obj_t* obj);
+void sl_d_obj_free(sl_d_obj_t* obj);
 // Methods and values
 void sl_d_obj_set_slot(sl_d_obj_t* obj, sl_d_sym_t* name, sl_d_obj_t* val);
 sl_d_obj_t* sl_d_obj_get_slot(sl_d_obj_t* obj, sl_d_sym_t* name);
@@ -240,6 +241,7 @@ void sl_d_array_free(sl_d_array_t* arr);
 sl_i_array_item_t* sl_d_array_first_item(sl_d_array_t* arr);
 sl_i_array_item_t* sl_d_array_next_item(sl_d_array_t* arr, sl_i_array_item_t* i);
 void* sl_d_array_index_set(sl_d_array_t* arr, int i, void* obj);
+void sl_d_array_empty(sl_d_array_t* arr);
 
 sl_d_int_t* sl_d_int_new(int value);
 void sl_d_int_free(sl_d_int_t* arr);

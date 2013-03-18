@@ -366,7 +366,9 @@ SL_I_METHOD_F(int_add) {//args: self, params
   sl_d_int_t* _self  = (sl_d_int_t*)self;
   sl_d_int_t* _other = (sl_d_int_t*)other;
   sl_d_obj_t* ret = (sl_d_obj_t*)sl_d_int_new(_self->value + _other->value);
-  // sl_d_obj_release(self); sl_d_obj_release(other);
+  
+  sl_d_obj_release(self); sl_d_obj_release(other);
+  
   return ret;
 }
 
@@ -379,7 +381,9 @@ SL_I_METHOD_F(int_sub) {//args: self, params
   sl_d_int_t* _self  = (sl_d_int_t*)self;
   sl_d_int_t* _other = (sl_d_int_t*)other;
   sl_d_obj_t* ret = (sl_d_obj_t*)sl_d_int_new(_self->value - _other->value);
-  // sl_d_obj_release(self); sl_d_obj_release(other);
+  
+  sl_d_obj_release(self); sl_d_obj_release(other);
+  
   return ret;
 }
 
@@ -392,7 +396,9 @@ SL_I_METHOD_F(int_mul) {//args: self, params
   sl_d_int_t* _self  = (sl_d_int_t*)self;
   sl_d_int_t* _other = (sl_d_int_t*)other;
   sl_d_obj_t* ret = (sl_d_obj_t*)sl_d_int_new(_self->value * _other->value);
-  // sl_d_obj_release(self); sl_d_obj_release(other);
+  
+  sl_d_obj_release(self); sl_d_obj_release(other);
+  
   return ret;
 }
 
@@ -405,7 +411,9 @@ SL_I_METHOD_F(int_div) {//args: self, params
   sl_d_int_t* _self  = (sl_d_int_t*)self;
   sl_d_int_t* _other = (sl_d_int_t*)other;
   sl_d_obj_t* ret = (sl_d_obj_t*)sl_d_int_new(_self->value / _other->value);
-  // sl_d_obj_release(self); sl_d_obj_release(other);
+  
+  sl_d_obj_release(self); sl_d_obj_release(other);
+  
   return ret;
 }
 

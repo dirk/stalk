@@ -111,9 +111,6 @@ char* sl_d_type_string_padded(int type) {
 
 // OBJECT MEMORY MANAGEMENT ---------------------------------------------------
 
-// Predefining before retain-release
-static inline void sl_d_obj_free(sl_d_obj_t* obj);
-
 void sl_d_obj_retain(sl_d_obj_t* obj) {
   if(obj->type == SL_DATA_NULL || obj->type == SL_DATA_BOOL) {
     SL_GC_DEBUG("RETAIN  SKIP       %s", sl_d_type_string_padded(obj->type));
@@ -146,7 +143,7 @@ bool sl_d_obj_release(sl_d_obj_t* obj) {
 }
 
 // Free that doesn't give a shit about the reference count.
-static inline void sl_d_obj_free(sl_d_obj_t* obj) {
+void sl_d_obj_free(sl_d_obj_t* obj) {
   // Clear out slots.
   if(obj->slots != NULL) {
     sl_i_sym_item_t* current_item;
@@ -155,8 +152,10 @@ static inline void sl_d_obj_free(sl_d_obj_t* obj) {
     HASH_ITER(hh, obj->slots, current_item, tmp_item) {
       HASH_DEL(obj->slots, current_item);
       if(current_item->value != NULL) {
-        sl_d_sym_t* sym = sl_i_sym_lookup(current_item->id);
-        SL_GC_DEBUG("-- Slot release: %s", sym->value);
+        SL_GC_DEBUG(
+          "-- Slot release: %s",
+          sl_i_sym_lookup(current_item->id)->value
+        );
         sl_d_obj_release((sl_d_obj_t*)current_item->value);
       }
       free(current_item);
@@ -446,7 +445,7 @@ sl_d_obj_t* sl_d_method_call(
   // Call the block itself
   sl_d_obj_t* ret = sl_d_block_call(method->block, scope, block_params);
   // Clean up
-  SL_GC_DEBUG("-- Release block scope");
+  SL_GC_DEBUG("-- Free block scope");
   sl_d_obj_release((sl_d_obj_t*)scope);
   SL_GC_DEBUG("-- Release block params");
   sl_d_obj_release((sl_d_obj_t*)block_params);
@@ -573,12 +572,13 @@ void sl_d_array_free(sl_d_array_t* arr) {
   ) {
     sl_d_obj_release(obj);
   }
-  */
   sl_i_array_item_t* item = sl_d_array_first_item(arr);
   while(item != NULL) {
     sl_d_obj_release((sl_d_obj_t*)item->value);
     item = sl_d_array_next_item(arr, item);
   }
+  */
+  sl_d_array_empty(arr);
   utarray_free(arr->objs);
   free(arr);
 }
@@ -634,6 +634,17 @@ void* sl_d_array_index_set(sl_d_array_t* arr, int i, void* obj) {
     sl_d_obj_release(old_val);
     return obj;
   }
+}
+void sl_d_array_empty(sl_d_array_t* arr) {
+  sl_i_array_item_t* item = sl_d_array_first_item(arr);
+  sl_i_array_item_t* prev_item;
+  while(item != NULL) {
+    sl_d_obj_t* obj = item->value;
+    sl_d_obj_release(obj);
+    prev_item = item;
+    item = sl_d_array_next_item(arr, item);
+  }
+  utarray_clear(arr->objs);
 }
 
 // SYMBOL ---------------------------------------------------------------------

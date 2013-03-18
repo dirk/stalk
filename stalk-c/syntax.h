@@ -139,5 +139,7 @@ void* sl_s_expr_eval(sl_s_expr_t* expr, void* scope);
 void* sl_s_expr_eval_shallow(sl_s_expr_t* expr, void* scope);
 void* sl_s_int_eval(sl_s_int_t* s, void* scope);
 void* sl_s_string_eval(sl_s_string_t* s, void* scope);
+void* sl_s_message_eval(sl_s_message_t* m, void* scope);
+void sl_i_message_cleanup(void* _m);
 
 #endif
